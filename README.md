@@ -18,11 +18,9 @@ pnpm add svelte-command-form
 npm install svelte-command-form
 ```
 
-`svelte-command-form` declares `svelte` as a peer dependency (Svelte 5+). Make sure your project already depends on Svelte before installing.
-
 ## Quick start
 
-```svelte
+```html
 <script lang="ts">
 	import { CommandForm } from 'svelte-command-form';
 	import { schema } from '$lib/schemas/user.schema';
@@ -36,12 +34,12 @@ npm install svelte-command-form
 	});
 </script>
 
-<input bind:value={form.form.name} placeholder="Name" />
+<input bind:value="{form.form.name}" placeholder="Name" />
 {#if form.errors.name}
-	<p class="error">{form.errors.name.message}</p>
+<p class="error">{form.errors.name.message}</p>
 {/if}
 
-<button disabled={form.submitting} on:click|preventDefault={form.submit}>
+<button disabled="{form.submitting}" on:click|preventDefault="{form.submit}">
 	{form.submitting ? 'Saving…' : 'Save'}
 </button>
 ```
@@ -55,21 +53,21 @@ npm install svelte-command-form
 
 To display errors in the DOM, check the keyed entry in `form.errors`:
 
-```svelte
+```html
 <label>
-  Name
-  <input bind:value={form.form.name} />
+	Name
+	<input bind:value="{form.form.name}" />
 </label>
 {#if form.errors.name}
-  <p class="error">{form.errors.name.message}</p>
+<p class="error">{form.errors.name.message}</p>
 {/if}
 
 <label>
-  Age
-  <input type="number" bind:value={form.form.age} />
+	Age
+	<input type="number" bind:value="{form.form.age}" />
 </label>
 {#if form.errors.age}
-  <p class="error">{form.errors.age.message}</p>
+<p class="error">{form.errors.age.message}</p>
 {/if}
 ```
 
@@ -89,8 +87,6 @@ const userSchema = z.object({
 
 const form = new CommandForm(userSchema, { command: saveUser });
 ```
-
-````
 
 ## API
 
@@ -140,25 +136,25 @@ SvelteKit command functions currently expect JSON-serializable payloads, so `Fil
 
 ```svelte
 <script lang="ts">
-  import { CommandForm, normalizeFiles } from 'svelte-command-form';
-  import { zodSchema } from '$lib/schemas/upload.schema';
-  import { uploadCommand } from '$lib/server/upload.remote';
+	import { CommandForm, normalizeFiles } from 'svelte-command-form';
+	import { zodSchema } from '$lib/schemas/upload.schema';
+	import { uploadCommand } from '$lib/server/upload.remote';
 
-  const form = new CommandForm(zodSchema, {
-    command: uploadCommand,
-    async onSubmit(data) {
-      data.attachments = await normalizeFiles(data.attachments);
-    }
-  });
+	const form = new CommandForm(zodSchema, {
+		command: uploadCommand,
+		async onSubmit(data) {
+			data.attachments = await normalizeFiles(data.attachments);
+		}
+	});
 
-  const handleFiles = (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    form.set({ attachments: input.files ? [...input.files] : [] });
-  };
+	const handleFiles = (event: Event) => {
+		const input = event.target as HTMLInputElement;
+		form.set({ attachments: input.files ? [...input.files] : [] });
+	};
 </script>
 
 <input type="file" multiple on:change={handleFiles} />
-````
+```
 
 `normalizeFiles` outputs objects like:
 
@@ -179,8 +175,8 @@ Standard Schema v1 intentionally does **not** provide a cross-library location f
 
 ```ts
 const form = new CommandForm(userSchema, {
-  initial: { name: 'Ada Lovelace', age: 30, attachments: [] },
-  command: saveUser
+	initial: { name: 'Ada Lovelace', age: 30, attachments: [] },
+	command: saveUser
 });
 ```
 
