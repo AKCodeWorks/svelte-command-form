@@ -73,6 +73,16 @@ To display errors in the DOM, check the keyed entry in `form.errors`:
 
 Running `await form.validate()` triggers the same schema parsing as `submit()` without sending data, so you can eagerly show validation feedback (e.g., on blur). Whenever validation passes, both `errors` and `issues` are cleared.
 
+Array and nested errors follow the dot-path reported by your schema. If the schema declares `names: z.array(z.string())` and the user submits `[123]`, the error map becomes:
+
+```ts
+{
+  'names.0': { message: 'Expected string' }
+}
+```
+
+Render that however makes sense—either surface the aggregated message near the group (`form.errors['names.0']?.message`) or group entries by prefix to display per-item errors.
+
 ### Standard Schema compatibility
 
 Any schema object that exposes the `~standard` property works:
@@ -134,7 +144,7 @@ Utility that converts a `File[]` into JSON-friendly objects `{ name, type, size,
 
 SvelteKit command functions currently expect JSON-serializable payloads, so `File` objects cannot be passed directly from the client to a command. Use the provided `normalizeFiles` helper to convert browser `File` instances into serializable blobs inside the `onSubmit` hook (so the parsed data that reaches your command already contains normalized entries):
 
-```svelte
+```html
 <script lang="ts">
 	import { CommandForm, normalizeFiles } from 'svelte-command-form';
 	import { zodSchema } from '$lib/schemas/upload.schema';
@@ -153,7 +163,7 @@ SvelteKit command functions currently expect JSON-serializable payloads, so `Fil
 	};
 </script>
 
-<input type="file" multiple on:change={handleFiles} />
+<input type="file" multiple on:change="{handleFiles}" />
 ```
 
 `normalizeFiles` outputs objects like:
@@ -180,7 +190,7 @@ const form = new CommandForm(userSchema, {
 });
 ```
 
-`initial` can also be a function if you need to recompute defaults per instantiation (`initial: () => ({ createdAt: new Date().toISOString() }))`. Any keys not provided remain `undefined` until the user interacts with them or you call `form.set`.
+`initial` can also be a function if you need to recompute defaults per instantiation (`initial: () => ({ createdAt: new Date().toISOString() }))` or if you are using a `$derived()`. Any keys not provided remain `undefined` (or `null` if you explicitly set them) until the user interacts with them or you call `form.set`. If your schema rejects `undefined`/`null`, make it nullable (`z.string().nullable()`, `z.array(...).optional()`, etc.) or seed the field via `initial`.
 
 ## Error handling
 

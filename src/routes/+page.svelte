@@ -5,13 +5,21 @@
 
 	const f = new CommandForm(schema, {
 		command: test,
+		initial: {
+			hobbies: ['coding']
+		},
 		onSubmit: async (data) => {
 			console.log(data);
 		},
 		onSuccess: async (res) => {
 			console.log('success');
+		},
+		onError: async (err) => {
+			console.log('error', err);
 		}
 	});
+
+	$inspect(f.errors);
 </script>
 
 <input type="text" placeholder="Name" bind:value={f.form.name} />
