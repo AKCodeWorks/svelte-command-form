@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { RemoteFunctionIssue } from './command-form.types.ts';
+import type { RemoteFunctionIssue } from '../types/command-form.types.ts';
 
 function transformIssues(
   issues?: ReadonlyArray<StandardSchemaV1.Issue>

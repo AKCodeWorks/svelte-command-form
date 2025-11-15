@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CommandForm } from '$lib/command-form.svelte.ts';
+	import { CommandForm } from '$lib/command-form/command-form.svelte.ts';
 	import { test } from './test.remote.ts';
 	import { schema } from './test.schema.ts';
 

@@ -24,59 +24,87 @@ npm install svelte-command-form
 
 ```svelte
 <script lang="ts">
-  import { CommandForm } from 'svelte-command-form';
-  import { schema } from '$lib/schemas/user.schema';
-  import { saveUser } from '$lib/server/save-user';
+	import { CommandForm } from 'svelte-command-form';
+	import { schema } from '$lib/schemas/user.schema';
+	import { saveUser } from '$lib/server/save-user';
 
-  const form = new CommandForm(schema, {
-    initial: { name: '' },
-    command: saveUser,
-    reset: 'onSuccess',
-    onSuccess: (result) => console.log('Saved', result)
-  });
+	const form = new CommandForm(schema, {
+		initial: { name: '' },
+		command: saveUser,
+		reset: 'onSuccess',
+		onSuccess: (result) => console.log('Saved', result)
+	});
 </script>
 
 <input bind:value={form.form.name} placeholder="Name" />
 {#if form.errors.name}
-  <p class="error">{form.errors.name.message}</p>
+	<p class="error">{form.errors.name.message}</p>
 {/if}
 
 <button disabled={form.submitting} on:click|preventDefault={form.submit}>
-  {form.submitting ? 'Saving…' : 'Save'}
+	{form.submitting ? 'Saving…' : 'Save'}
 </button>
 ```
+
+### Showing validation errors
+
+`CommandForm` keeps two synchronized error stores:
+
+- `errors` – per-field objects `{ message: string }` that are easy to render.
+- `issues` – the untouched Standard Schema issue array (useful for logs/analytics).
+
+To display errors in the DOM, check the keyed entry in `form.errors`:
+
+```svelte
+<label>
+  Name
+  <input bind:value={form.form.name} />
+</label>
+{#if form.errors.name}
+  <p class="error">{form.errors.name.message}</p>
+{/if}
+
+<label>
+  Age
+  <input type="number" bind:value={form.form.age} />
+</label>
+{#if form.errors.age}
+  <p class="error">{form.errors.age.message}</p>
+{/if}
+```
+
+Running `await form.validate()` triggers the same schema parsing as `submit()` without sending data, so you can eagerly show validation feedback (e.g., on blur). Whenever validation passes, both `errors` and `issues` are cleared.
 
 ### Standard Schema compatibility
 
 Any schema object that exposes the `~standard` property works:
 
 ```ts
-import { z } from 'zod';
-import { valibotSchema } from 'valibot';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { z } from 'zod'; // or create a schema with any StandardSchemaV1 compliant lib.
 
-const userSchema = z
-  .object({
-    name: z.string().min(2),
-    email: z.string().email()
-  }) satisfies StandardSchemaV1;
+const userSchema = z.object({
+	name: z.string().min(2),
+	email: z.string().email()
+});
 
 const form = new CommandForm(userSchema, { command: saveUser });
 ```
+
+````
 
 ## API
 
 ### `new CommandForm(schema, options)`
 
-| Option | Type | Description |
-| --- | --- | --- |
-| `initial` | `Partial<T>` \| `() => Partial<T>` | Optional initial values. Returning a function lets you compute defaults per instance. |
-| `command` | `(input: TIn) => Promise<TOut>` | Required remote command. The resolved value is stored in `result`. |
-| `invalidate` | `string \| string[] \| 'all'` | Optional SvelteKit invalidation target(s) to refresh once a submission succeeds. |
-| `reset` | `'onSuccess' \| 'always' \| 'onError'` | Optional reset behavior (default: no auto reset). |
-| `onSubmit` | `(data) => void \| Promise<void>` | Called right after the schema parse succeeds, before `command`. |
-| `onSuccess` | `(result) => void \| Promise<void>` | Runs after `command` resolves. |
-| `onError` | `(err) => void \| Promise<void>` | Runs after client, schema, or HTTP errors are handled. |
+| Option       | Type                                   | Description                                                                           |
+| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| `initial`    | `Partial<T>` \| `() => Partial<T>`     | Optional initial values. Returning a function lets you compute defaults per instance. |
+| `command`    | `(input: TIn) => Promise<TOut>`        | Required remote command. The resolved value is stored in `result`.                    |
+| `invalidate` | `string \| string[] \| 'all'`          | Optional SvelteKit invalidation target(s) to refresh once a submission succeeds.      |
+| `reset`      | `'onSuccess' \| 'always' \| 'onError'` | Optional reset behavior (default: no auto reset).                                     |
+| `onSubmit`   | `(data) => void \| Promise<void>`      | Called right after the schema parse succeeds, before `command`.                       |
+| `onSuccess`  | `(result) => void \| Promise<void>`    | Runs after `command` resolves.                                                        |
+| `onError`    | `(err) => void \| Promise<void>`       | Runs after client, schema, or HTTP errors are handled.                                |
 
 #### Instance fields
 
@@ -105,6 +133,58 @@ Custom error class wrapping the exact `issues` array returned by your schema. Ca
 ### `normalizeFiles(files: File[])`
 
 Utility that converts a `File[]` into JSON-friendly objects `{ name, type, size, bytes }`, making it easy to send uploads through command functions.
+
+## Handling file uploads
+
+SvelteKit command functions currently expect JSON-serializable payloads, so `File` objects cannot be passed directly from the client to a command. Use the provided `normalizeFiles` helper to convert browser `File` instances into serializable blobs inside the `onSubmit` hook (so the parsed data that reaches your command already contains normalized entries):
+
+```svelte
+<script lang="ts">
+  import { CommandForm, normalizeFiles } from 'svelte-command-form';
+  import { zodSchema } from '$lib/schemas/upload.schema';
+  import { uploadCommand } from '$lib/server/upload.remote';
+
+  const form = new CommandForm(zodSchema, {
+    command: uploadCommand,
+    async onSubmit(data) {
+      data.attachments = await normalizeFiles(data.attachments);
+    }
+  });
+
+  const handleFiles = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    form.set({ attachments: input.files ? [...input.files] : [] });
+  };
+</script>
+
+<input type="file" multiple on:change={handleFiles} />
+````
+
+`normalizeFiles` outputs objects like:
+
+```ts
+type NormalizedFile = {
+	name: string;
+	type: string;
+	size: number;
+	bytes: Uint8Array;
+};
+```
+
+Both the Zod and Valibot schemas above can be adapted to accept either `File[]` (for client-side validation) or this normalized structure if you prefer validating the serialized payload on the server.
+
+## Initial values and schema defaults
+
+Standard Schema v1 intentionally does **not** provide a cross-library location for default values. A Zod or Valibot schema may specify defaults internally, but those defaults are not discoverable through the shared `~standard` interface. Because of that, `CommandForm` cannot pull defaults from your schema automatically. Instead, pass defaults via `options.initial`:
+
+```ts
+const form = new CommandForm(userSchema, {
+  initial: { name: 'Ada Lovelace', age: 30, attachments: [] },
+  command: saveUser
+});
+```
+
+`initial` can also be a function if you need to recompute defaults per instantiation (`initial: () => ({ createdAt: new Date().toISOString() }))`. Any keys not provided remain `undefined` until the user interacts with them or you call `form.set`.
 
 ## Error handling
 

@@ -3,9 +3,9 @@ import { isHttpError } from '@sveltejs/kit';
 import { invalidate, invalidateAll } from '$app/navigation';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { HttpError } from '@sveltejs/kit';
-import { transformIssues } from './transform-issues.ts';
-import type { CommandFormErrors, CommandFormOptions } from './command-form.types.ts';
-import { SchemaValidationError, standardValidate, type SchemaIssues } from './standard-validate.ts';
+import { transformIssues } from '../helpers/transform-issues.ts';
+import type { CommandFormErrors, CommandFormOptions } from '../types/command-form.types.ts';
+import { SchemaValidationError, standardValidate, type SchemaIssues } from '../helpers/standard-validate.ts';
 
 type SchemaData<Schema extends StandardSchemaV1> = StandardSchemaV1.InferOutput<Schema>;
 
