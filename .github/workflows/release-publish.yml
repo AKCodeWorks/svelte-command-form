@@ -1,56 +1,46 @@
-name: Release Publish
+name: Publish Package
 
 on:
   release:
-    types:
-      - published
+    types: [published]
 
 permissions:
+  id-token: write # Required for npm trusted publishing
   contents: read
-  packages: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          version: 9
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+      - name: Ensure latest npm (required for trusted publishing)
+        run: npm install -g npm@latest
+
+      - name: Extract version from release tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Update package.json version
+        run: npm version "$VERSION" --no-git-tag-version
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Align package version with release tag
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          set -eo pipefail
-          if [[ -z "$RELEASE_TAG" ]]; then
-            echo "Release tag is required to set the package version." >&2
-            exit 1
-          fi
-          VERSION="${RELEASE_TAG#v}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tag '$RELEASE_TAG' is not a valid semantic version." >&2
-            exit 1
-          fi
-          pnpm pkg set version="$VERSION"
+        run: npm ci
 
       - name: Build package
-        run: pnpm run build
+        run: npm run build --if-present
 
-      - name: Publish to npm
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Publish to npm (trusted publishing)
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
