@@ -1,6 +1,6 @@
 # svelte-command-form
 
-Modern form state management for Svelte built on top of the [Standard Schema](https://github.com/standard-schema/standard-schema) protocol. `svelte-command-form` helps you pair type-safe validators with imperative “command” functions (load actions, server functions, RPC endpoints, etc.) while keeping client state, server errors, and validation feedback perfectly aligned.
+Svelte-Command-Form allows you to have easy to use forms with commands instead of remote forms. Is this redundant? Maybe. However, you may not want to use an HTML form everytime. The API is greatly influenced by SvelteKit-Superforms, so if you are used to that you shouldn't have a problem here.
 
 ## Features
 
@@ -13,9 +13,9 @@ Modern form state management for Svelte built on top of the [Standard Schema](ht
 ## Installation
 
 ```bash
-pnpm add svelte-command-form
+pnpm add @akcodeworks/svelte-command-form
 # or
-npm install svelte-command-form
+npm install @akcodeworks/svelte-command-form
 ```
 
 ## Quick start
@@ -39,7 +39,7 @@ npm install svelte-command-form
 <p class="error">{form.errors.name.message}</p>
 {/if}
 
-<button disabled="{form.submitting}" on:click|preventDefault="{form.submit}">
+<button disabled="{form.submitting}" onclick="{form.submit}">
 	{form.submitting ? 'Saving…' : 'Save'}
 </button>
 ```
@@ -127,6 +127,7 @@ const form = new CommandForm(userSchema, { command: saveUser });
 - `validate()` – Runs schema validation without submitting, updating both `errors` and `issues`.
 - `submit()` – Parses the schema, calls hooks, executes the configured command, manages invalidation, and populates error state on failure.
 - `getErrors()` / `getIssues()` – Accessor helpers useful outside of `$state` reactivity (e.g., from tests).
+- `addError({path: string, message: string})` - Allows you to set an error on the form programatically (client side only)
 
 ### `standardValidate(schema, input)`
 
@@ -163,7 +164,7 @@ SvelteKit command functions currently expect JSON-serializable payloads, so `Fil
 	};
 </script>
 
-<input type="file" multiple on:change="{handleFiles}" />
+<input type="file" multiple onchange="{handleFiles}" />
 ```
 
 `normalizeFiles` outputs objects like:

@@ -58,6 +58,12 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     return standardValidate(this.schema, this.form as StandardSchemaV1.InferInput<Schema>);
   }
 
+  // set path to keyof schema or string
+
+  addError = (error: { path: string, message: string }) => {
+    (this.errors as any)[error.path] = { message: error.message };
+  }
+
   reset = () => {
     for (const key in this.form) delete (this.form as any)[key];
     Object.assign(this.form, this.resolveInitial());

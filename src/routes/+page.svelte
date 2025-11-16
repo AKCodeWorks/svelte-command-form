@@ -23,7 +23,9 @@
 </script>
 
 <input type="text" placeholder="Name" bind:value={f.form.name} />
+
 <button onclick={f.submit}>submit</button>
+<button onclick={() => f.addError({ path: 'name', message: 'yeet' })}>custom error</button>
 {#if f.errors.name?.message}
 	<p style="color: red">{f.errors.name.message}</p>
 {/if}

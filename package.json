@@ -1,6 +1,6 @@
 {
 	"name": "@akcodeworks/svelte-command-form",
-	"version": "0.0.1",
+	"version": "0.0.0",
 	"description": "Command pattern form helper for Svelte powered by Standard Schema validation.",
 	"scripts": {
 		"dev": "vite dev",
