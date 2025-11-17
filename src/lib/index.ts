@@ -1,6 +1,6 @@
-export { CommandForm } from './command-form/command-form.svelte.ts';
-export type { CommandFormOptions, CommandFormErrors, RemoteCommand, RemoteFunctionIssue } from './types/command-form.types.ts';
-export { normalizeFiles } from './command-form/normalize-files.ts';
-export { standardValidate, SchemaValidationError } from './helpers/standard-validate.ts';
-export type { SchemaIssues } from './helpers/standard-validate.ts';
-export { transformIssues } from './helpers/transform-issues.ts';
+export { CommandForm } from './command-form/command-form.svelte.js';
+export type { CommandFormOptions, CommandFormErrors, RemoteCommand, RemoteFunctionIssue } from './types/command-form.types.js';
+export { normalizeFiles } from './command-form/normalize-files.js';
+export { standardValidate, SchemaValidationError } from './helpers/standard-validate.js';
+export type { SchemaIssues } from './helpers/standard-validate.js';
+export { transformIssues } from './helpers/transform-issues.js';
