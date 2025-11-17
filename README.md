@@ -5,7 +5,7 @@ Svelte-Command-Form allows you to have easy to use forms with commands instead o
 ## Features
 
 - **Schema-agnostic validation** – Works with any library that implements the Standard Schema v1 interface (Zod, Valibot, TypeBox, custom validators, …).
-- **Command-first workflow** – Wire forms directly to your remote command (e.g. [`command` from `$app/server`](https://kit.svelte.dev/docs/load#command-functions)), and let the helper manage submission, success, and error hooks.
+- **Command-first workflow** – Wire forms directly to your remote command ([`command` from `$app/server`](https://kit.svelte.dev/docs/load#command-functions)), and let the helper manage submission, success, and error hooks.
 - **Typed form state** – `form`, `errors`, and `issues` are all strongly typed from your schema, so your component code stays in sync with validation rules.
 - **Friendly + raw errors** – Surface user-friendly `errors` for rendering, while also exposing the untouched validator `issues` array for logging/analytics.
 - **Helpers for remote inputs** – Includes `normalizeFiles` for bundling file uploads and `standardValidate` for reusing schema validation outside the form class.
@@ -182,7 +182,7 @@ Both the Zod and Valibot schemas above can be adapted to accept either `File[]` 
 
 ## Initial values and schema defaults
 
-Standard Schema v1 intentionally does **not** provide a cross-library location for default values. A Zod or Valibot schema may specify defaults internally, but those defaults are not discoverable through the shared `~standard` interface. Because of that, `CommandForm` cannot pull defaults from your schema automatically. Instead, pass defaults via `options.initial`:
+Standard Schema v1 does **not** provide a cross-library location for default values. A Zod or Valibot schema may specify defaults internally, but those defaults are not discoverable through the shared `~standard` interface. If there is an easy way to do this feel free to submit a PR. Because of that, `CommandForm` cannot pull defaults from your schema automatically. Instead, pass defaults via `options.initial`:
 
 ```ts
 const form = new CommandForm(userSchema, {
@@ -201,21 +201,38 @@ When validation fails, `CommandForm`:
 2. Converts issues into `errors` (per field) via `transformIssues`.
 3. Stores the raw issue array in `issues` for programmatic access.
 
-If the command throws an `HttpError` from SvelteKit, the helper looks for `err.body.issues` and merges them into the same structures. Any other error is forwarded to `onError` after clearing submission state.
+If the command throws an `HttpError` from SvelteKit, the helper looks for `err.body.issues` and merges them into the same structures. Any other error is forwarded to `onError` after clearing submission state. You can handle validation errors to populate this in your `hooks.server.ts`
 
-## Development
+## Manual Errors
 
-- `pnpm dev` – Play with the demo app in `src/routes`.
-- `pnpm check` – Run `svelte-check` for type and accessibility diagnostics.
-- `pnpm test` – Execute the Vitest suite (if present).
-- `pnpm prepack` – Builds the library with `svelte-package` + `publint` (also run as part of `pnpm build`).
+You can add errors manually by using the `addErrors` method on the client or by throwing a `new SchemaValidationError` inside of the remote function.
 
-## Publishing
+```typescript
+// server add error
+const someFunc = command(schema, async (data) => {
+	const user = await db.find({where: email: data.email})
+	if(!user) throw new SchemaValidationError([{ message: "User does with this email does not exist!", path: ['email'] }])
+})
+```
 
-1. Confirm `package.json` metadata (name, version, description, license, repository, etc.).
-2. Run `pnpm build` to emit `dist/`.
-3. Inspect the output (`npm pack --dry-run`) if desired.
-4. Publish: `npm publish` (or `pnpm publish`).
+```html
+<!-- +page.svelte -->
+<script lang="ts">
+	const form = new CommandForm(schema, {
+		command: someCommand
+	});
+
+	function addError() {
+		form.addError({ path: 'name', message: 'Test Error' });
+	}
+</script>
+
+<button onclick="{addError}">Add an Error</button>
+```
+
+## Contributing
+
+Feel free to contribute by opening a PR with a detailed description of why you are wanting to change what you are changing. If it can be tested with Vitest, that is preferred.
 
 ## License
 
