@@ -17,7 +17,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
   errors = $state<CommandFormErrors<SchemaData<Schema>>>({});
   issues = $state<SchemaIssues | null>(null);
   private _submitting = $state(false);
-  private _result = $state<TOut | null>(null);
+  private _result = $state<Awaited<TOut> | null>(null);
 
   constructor(schema: Schema, options: CommandFormOptions<SchemaData<Schema>, TOut>) {
     this.schema = schema;
@@ -91,7 +91,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     }
   };
 
-  submit = async (): Promise<TOut | null> => {
+  submit = async (): Promise<Awaited<TOut> | null> => {
     this._submitting = true;
     this.clearErrors();
     this._result = null;

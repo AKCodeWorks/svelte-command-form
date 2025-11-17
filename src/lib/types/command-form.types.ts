@@ -12,7 +12,7 @@ type CommandFormOptions<TIn, TOut> = {
   command: RemoteCommand<TIn, TOut>;
   reset?: 'onSuccess' | 'always' | 'onError';
   onSubmit?: (data: TIn) => Promise<void> | void;
-  onSuccess?: (result: TOut) => Promise<void> | void;
+  onSuccess?: (result: Awaited<TOut>) => Promise<void> | void;
   onError?: (err: unknown) => Promise<void> | void;
 };
 

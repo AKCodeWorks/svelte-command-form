@@ -13,6 +13,7 @@
 		},
 		onSuccess: async (res) => {
 			console.log('success');
+			console.log(res.success);
 		},
 		onError: async (err) => {
 			console.log('error', err);
