@@ -54,8 +54,11 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     }
   }
 
-  private async parseForm(): Promise<SchemaData<Schema>> {
-    return standardValidate(this.schema, this.form as StandardSchemaV1.InferInput<Schema>);
+  private async parseForm(
+    data?: StandardSchemaV1.InferInput<Schema>
+  ): Promise<SchemaData<Schema>> {
+    const target = data ?? this.form;
+    return standardValidate(this.schema, target);
   }
 
   // set path to keyof schema or string
@@ -97,14 +100,22 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     this._result = null;
 
     try {
-      await this.options.preprocess?.(this.form)
-      const parsed = await this.parseForm();
+
+      const workingCopy = $state.snapshot(this.form)
+
+      const preprocessed =
+        (await this.options.preprocess?.(workingCopy)) ?? workingCopy;
+
+      const parsed = await this.parseForm(preprocessed);
+
       await this.options.onSubmit?.(parsed);
 
       const res = await this.options.command(parsed);
+
       this._result = res;
 
       this.issues = null;
+
       await this.options.onSuccess?.(res);
 
       if (this.options.invalidate) {

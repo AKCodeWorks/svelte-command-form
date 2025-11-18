@@ -222,11 +222,32 @@ Allows you to select if the form should be reset. By default, the form never res
 
 Allows you to preprocess any data you have set when the form is submitted. This will run prior to any parsing on the client. For example if you would need to convert an input of type 'date' to an ISO string on the client before submitting. If this is a promise, it will be awaited before continuing.
 
+> Preprocessed data creates a `$state.snapshot()` of your form data. Thus it is ephemeral, that way if the command fails, your form data is not already processed.
+
 ```html
 <script lang="ts">
 	const cmd = new CommandForm(schema, {
 		preprocess: (data) => {
-			cmd.set({ someDate: new Date(data.someDate).toISOString() });
+			return { ...data, name: data.name.trim() };
+		}
+		// ... other options
+	});
+</script>
+
+<input type="date" bind:value="{cmd.form.someDate}" />
+```
+
+---
+
+#### `options.onSuccess()`
+
+Runs when the form is submitted. \*The data available inside of this function is the result of your preprocess function if you have one. This can also be a promise.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		onSubmit: (data) => {
+			toast.loading('Submitting data...please wait!');
 		}
 		// ... other options
 	});

@@ -14,6 +14,9 @@
 		},
 		onError: async (err) => {
 			console.error('error', err);
+		},
+		preprocess: (data) => {
+			return { ...data, name: 'preprocessed' };
 		}
 	});
 </script>
