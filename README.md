@@ -26,7 +26,7 @@ npm install @akcodeworks/svelte-command-form
 
 ```html
 <script lang="ts">
-	import { CommandForm } from 'svelte-command-form';
+	import { CommandForm } from '@akcodeworks/svelte-command-form';
 	import { schema } from '$lib/schemas/user.schema';
 	import { saveUser } from '$lib/server/save-user';
 
@@ -377,7 +377,7 @@ data that reaches your command already contains normalized entries):
 
 ```html
 <script lang="ts">
-	import { CommandForm, normalizeFiles } from 'svelte-command-form';
+	import { CommandForm, normalizeFiles } from '@akcodeworks/svelte-command-form';
 	import { zodSchema } from '$lib/schemas/upload.schema';
 	import { uploadCommand } from '$lib/server/upload.remote';
 
