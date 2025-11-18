@@ -103,6 +103,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
 
       const res = await this.options.command(parsed);
       this._result = res;
+
       this.issues = null;
       await this.options.onSuccess?.(res);
 
@@ -127,10 +128,15 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
         return null;
       }
 
+
+
       if (isHttpError(err)) {
-        const httpError = err as HttpError & {
-          body: { issues?: Record<string, { message: string }> };
-        };
+        const httpError = err as HttpError & { body: any };
+        if (Array.isArray(httpError.body?.issues) && httpError.body.issues.every((i: any) => 'path' in i && 'message' in i)) {
+          this.setErrorsFromIssues(httpError.body.issues);
+          await this.options.onError?.(err);
+          return null;
+        }
         const transformed = httpError.body.issues;
         if (transformed) {
           this.setErrorsFromRecord(transformed);

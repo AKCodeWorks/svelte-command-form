@@ -12,8 +12,6 @@ export class SchemaValidationError extends Error {
   }
 }
 
-
-
 export async function standardValidate<T extends StandardSchemaV1>(
   schema: T,
   input: StandardSchemaV1.InferInput<T>

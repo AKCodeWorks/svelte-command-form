@@ -1,11 +1,9 @@
 import { command } from "$app/server";
 import { schema } from "./test.schema.ts";
+import { SchemaValidationError } from "$lib/index.ts";
 
 
+export const test = command(schema, async () => {
 
-
-export const test = command(schema, async (d) => {
-  console.log("running comand")
-  console.log(d)
-  return { success: true };
+  throw new SchemaValidationError([{ path: ['email'], message: 'Name is invalid server error!!' }])
 })

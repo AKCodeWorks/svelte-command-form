@@ -22,7 +22,7 @@ pnpm add @akcodeworks/svelte-command-form
 npm install @akcodeworks/svelte-command-form
 ```
 
-## Quick start
+## How to Use
 
 ```html
 <script lang="ts">
@@ -418,11 +418,36 @@ When validation fails, `CommandForm`:
 2. Converts issues into `errors` (per field) via `transformIssues`.
 3. Stores the raw issue array in `issues` for programmatic access.
 
-If the command throws an `HttpError` from SvelteKit, the helper looks for `err.body.issues` and merges them into the same structures. Any other error is forwarded to `onError` after clearing submission state. You can handle validation errors to populate this in your `hooks.server.ts`
+If you need to manually set an error follow these steps.
+
+1. Setup your hooks.server.ts file and add an error handler.
+
+```typescript
+export const handleError: HandleServerError = async ({ error }) => {
+	// Note: If you don't want bad actors seeing your validation issues, you can do an auth check here before returning
+	if (error instanceof SchemaValidationError) return error as SchemaValidationError;
+};
+```
+
+2. Throw a new `SchemaValidationError` inside of the command.
+
+```typescript
+export const test = command(schema, async (data) => {
+	const user = await db.user.findFirst({ where: { email: data.email } });
+	if (!user)
+		throw new SchemaValidationError([
+			{ path: ['email'], message: 'Name is invalid server error!!' }
+		]);
+});
+```
+
+In the above example this will populate the `form.errors.email.message` field so you can display the error to the user on the client.
+
+> If you do not add the custom error handler in step 1, you will not get any issues back. This is a SvelteKit design principle when dealing with Remote Functions!
 
 ## Manual Errors
 
-You can add errors manually by using the `addErrors` method on the client or by throwing a `new SchemaValidationError` inside of the remote function.
+You can add errors manually by using the `addErrors` method (client only) or by throwing a `new SchemaValidationError`.
 
 ```typescript
 // server add error
@@ -446,6 +471,8 @@ const someFunc = command(schema, async (data) => {
 
 <button onclick="{addError}">Add an Error</button>
 ```
+
+> addError() does NOT throw an error, you will have to do that once you call it. If you want to throw an error, throw a new `SchemaValidationError`
 
 ## Contributing
 

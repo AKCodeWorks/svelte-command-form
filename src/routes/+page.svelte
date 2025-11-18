@@ -1,27 +1,21 @@
 <script lang="ts">
-	import { CommandForm } from '$lib/command-form/command-form.svelte.ts';
+	import { CommandForm } from '$lib/command-form/command-form.svelte.js';
 	import { test } from './test.remote.ts';
 	import { schema, TestEnum } from './test.schema.ts';
 
 	const f = new CommandForm(schema, {
 		command: test,
-		initial: {
-			hobbies: ['coding'],
-			status: TestEnum.ONE
-		},
 		onSubmit: async (data) => {
 			console.log(data);
 		},
 		onSuccess: async (res) => {
 			console.log('success');
-			console.log(res.success);
+			//	console.log(res.success);
 		},
 		onError: async (err) => {
-			console.log('error', err);
+			console.error('error', err);
 		}
 	});
-
-	$inspect(f.errors);
 </script>
 
 <input type="text" placeholder="Name" bind:value={f.form.name} />
