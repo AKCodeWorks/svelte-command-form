@@ -97,6 +97,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     this._result = null;
 
     try {
+      await this.options.preprocess?.(this.form)
       const parsed = await this.parseForm();
       await this.options.onSubmit?.(parsed);
 

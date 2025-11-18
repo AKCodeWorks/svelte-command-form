@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { CommandForm } from '$lib/command-form/command-form.svelte.ts';
 	import { test } from './test.remote.ts';
-	import { schema } from './test.schema.ts';
+	import { schema, TestEnum } from './test.schema.ts';
 
 	const f = new CommandForm(schema, {
 		command: test,
 		initial: {
-			hobbies: ['coding']
+			hobbies: ['coding'],
+			status: TestEnum.ONE
 		},
 		onSubmit: async (data) => {
 			console.log(data);

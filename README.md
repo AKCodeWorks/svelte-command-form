@@ -2,13 +2,17 @@
 
 Svelte-Command-Form allows you to have easy to use forms with commands instead of remote forms. Is this redundant? Maybe. However, you may not want to use an HTML form everytime. The API is greatly influenced by SvelteKit-Superforms, so if you are used to that you shouldn't have a problem here.
 
+Whenever possible you should use the SvelteKit provided `form` remote function since commands will fail in non-JS environments, but there may be cases where that is not practical or you just like the ease of interacting with an object instead of form data.
+
 ## Features
 
-- **Schema-agnostic validation** – Works with any library that implements the Standard Schema v1 interface (Zod, Valibot, TypeBox, custom validators, …).
-- **Command-first workflow** – Wire forms directly to your remote command ([`command` from `$app/server`](https://kit.svelte.dev/docs/load#command-functions)), and let the helper manage submission, success, and error hooks.
+- **Schema-agnostic validation** – Works with any library that implements the [Standard Schema V1]("https://standardschema.dev/") interface. If you are unsure if your schema validation library is compatible see the list of [compatible libraries](https://standardschema.dev/#what-schema-libraries-implement-the-spec).
+- **Command-first workflow** – Wire forms directly to your remote command ([`command` from `$app/server`](https://svelte.dev/docs/kit/remote-functions#command)), and let the helper manage submission, success, and error hooks.
 - **Typed form state** – `form`, `errors`, and `issues` are all strongly typed from your schema, so your component code stays in sync with validation rules.
 - **Friendly + raw errors** – Surface user-friendly `errors` for rendering, while also exposing the untouched validator `issues` array for logging/analytics.
 - **Helpers for remote inputs** – Includes `normalizeFiles` for bundling file uploads and `standardValidate` for reusing schema validation outside the form class.
+
+  > Standard validate was yoinked straight from the `StandardSchema` GitHub
 
 ## Installation
 
@@ -102,48 +106,274 @@ const form = new CommandForm(userSchema, { command: saveUser });
 
 ### `new CommandForm(schema, options)`
 
-| Option       | Type                                   | Description                                                                           |
-| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------- |
-| `initial`    | `Partial<T>` \| `() => Partial<T>`     | Optional initial values. Returning a function lets you compute defaults per instance. |
-| `command`    | `(input: TIn) => Promise<TOut>`        | Required remote command. The resolved value is stored in `result`.                    |
-| `invalidate` | `string \| string[] \| 'all'`          | Optional SvelteKit invalidation target(s) to refresh once a submission succeeds.      |
-| `reset`      | `'onSuccess' \| 'always' \| 'onError'` | Optional reset behavior (default: no auto reset).                                     |
-| `onSubmit`   | `(data) => void \| Promise<void>`      | Called right after the schema parse succeeds, before `command`.                       |
-| `onSuccess`  | `(result) => void \| Promise<void>`    | Runs after `command` resolves.                                                        |
-| `onError`    | `(err) => void \| Promise<void>`       | Runs after client, schema, or HTTP errors are handled.                                |
+#### `schema`
 
-#### Instance fields
+The schema that the command accepts.
 
-- `form` – `$state` proxy representing the form model. Bind inputs directly to its keys.
-- `errors` – `$state` map of `{ [field]: { message } }` that is ideal for user-facing feedback.
-- `issues` – `$state<SchemaIssues | null>` storing the untouched array emitted by `standardValidate`. Use this for logging or non-standard UI patterns.
-- `submitting` – Boolean getter reflecting `submit()` progress.
-- `result` – Getter exposing the last command result (or `null`).
+```typescript
+// someCommand.schema.ts
 
-#### Methods
+import { z } from 'zod';
 
-- `set(values, clear?)` – Merge values into the form. Pass `true` to replace instead of merge.
-- `reset()` – Restore the form to its initial state.
-- `validate()` – Runs schema validation without submitting, updating both `errors` and `issues`.
-- `submit()` – Parses the schema, calls hooks, executes the configured command, manages invalidation, and populates error state on failure.
-- `getErrors()` / `getIssues()` – Accessor helpers useful outside of `$state` reactivity (e.g., from tests).
-- `addError({path: string, message: string})` - Allows you to set an error on the form programatically (client side only)
+const schema = z.object({
+	name: z.string().min(1, 'Must have a name')
+});
 
-### `standardValidate(schema, input)`
+export { schema as someCommandSchema };
+```
 
-A small helper that runs the Standard Schema `validate` function, awaits async results, and throws `SchemaValidationError` when issues are returned. Use it to share validation logic between the form and other server utilities.
+```html
+<script lang="ts">
+	import { someCommandSchema } from '$lib/someCommand.schema.ts';
 
-### `SchemaValidationError`
+	const cmd = new CommandForm(someCommandSchema, {
+		// ... other options
+	});
+</script>
+```
 
-Custom error class wrapping the exact `issues` array returned by your schema. Catch it to reuse `transformIssues` or custom logging.
+---
 
-### `normalizeFiles(files: File[])`
+#### `options.initial`
 
-Utility that converts a `File[]` into JSON-friendly objects `{ name, type, size, bytes }`, making it easy to send uploads through command functions.
+Optional initial values. Returning a functions lets you compute defaults per form instance and/or when computed values change, like when using `$derived()`
+
+> You must set default values here if you are using them, default values are not able to be extracted from a `StandardSchemaV1`
+
+**Example:**
+
+```html
+<script lang="ts">
+	let { data } = $props();
+	let { name } = $derived(data);
+
+	const cmd = new CommandForm(schema, {
+		// if you do not use a function to get the value of name here
+		// you will never get the updated value
+		initial: () => ({
+			name
+		})
+		// ...other options
+	});
+</script>
+
+<input bind:value="{form.name}" />
+<button onclick="{cmd.form.submit}">Change Name</button>
+```
+
+---
+
+#### `options.command`
+
+The command function that is being called.
+
+**Example:**
+
+```html
+<script lang="ts">
+	import someCommand from '$lib/remote/some-command.remote';
+
+	const cmd = new CommandForm(schema, {
+		command: someCommand
+		// ...other options
+	});
+</script>
+```
+
+---
+
+#### `options.invalidate`
+
+Optional SvelteKit invalidation targets. Can be set to a single string, a string[] for multiple targets, or a literal of `all` to run `invalidateAll()`
+
+> This only runs on successful form submissions
+
+**Example:**
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		invalidate: 'user:details' // invalidates routes with depends("user:details") set
+		// ...other options
+	});
+</script>
+```
+
+---
+
+#### `options.reset`
+
+Allows you to select if the form should be reset. By default, the form never resets. This accepts a value of `onSuccess` | `onError` or `always`
+
+**Example:**
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		reset: 'always' // the form will reset after submission no matter what
+		// ...other options
+	});
+</script>
+```
+
+---
+
+#### `options.preprocess()`
+
+Allows you to preprocess any data you have set when the form is submitted. This will run prior to any parsing on the client. For example if you would need to convert an input of type 'date' to an ISO string on the client before submitting. If this is a promise, it will be awaited before continuing.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		preprocess: (data) => {
+			cmd.set({ someDate: new Date(data.someDate).toISOString() });
+		}
+		// ... other options
+	});
+</script>
+
+<input type="date" bind:value="{cmd.form.someDate}" />
+```
+
+---
+
+#### `options.onSuccess()`
+
+Runs if the form is submitted and returns sucessfully. You will have access to the returned value from the `command` that is ran. This can also be a promise.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		onSuccess: (response) => {
+			toast.success(`${response.name} has been updated!`);
+		}
+		// ... other options
+	});
+</script>
+
+<input type="date" bind:value="{cmd.form.someDate}" />
+```
+
+---
+
+#### `options.onError()`
+
+Runs if the command fails and an error is returned.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		onError: (error) => {
+			toast.error('Oops! Something went wrong!');
+			console.error(error);
+		}
+		// ... other options
+	});
+</script>
+```
+
+---
+
+### Methods & Values
+
+When you create a `new CommandForm` you get access to several methods and values that will help you manage your form state, submit, reset, and/or display errors.
+
+In the following examples we will be using the following command form.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		initial: {
+			name: 'Ada Lovelace',
+			age: '30'
+		}
+	});
+</script>
+```
+
+#### `.form`
+
+Gives you access to the data within the form. Useful when binding to inputs.
+
+```svelte
+<input placeholder="What is your name?" bind:value={cmd.form.name} />
+```
+
+---
+
+#### `.set(values, clear?: boolean )`
+
+Allows you to programatically merge form field values in bulk or add other values. If you set clear to true, it will replace all values instead of merging them in.
+
+```typescript
+set({ name: 'Linus Torvalds' });
+
+// cmd.form will now be {name: "Linus Torvalds", age: 30}
+
+set({ name: 'Linus Sebastian' }, true);
+
+// cmd.form will now be {name: "Linus Sebastian"}
+```
+
+---
+
+#### `.reset()`
+
+Resets the form to the initial values that were passed in when it was instantiated.
+
+> Note: If you are using an accessor function inside of `options.initial` it will reset to the newest available value instead of what it was when you instantiated it.
+
+---
+
+#### `.validate()`
+
+Runs the parser and populates any errors. Useful if you want to display errors in realtime as the user is filling out the form. It will also clear any errors as they are corrected each time it is run.
+
+> If you are using `options.preprocess` this is not ran during `validate()` however if you are using a schema library preprocessor such as `zod.preprocess` it should be ran within the parse.
+
+```svelte
+<input bind:value={cmd.form.name} onchange={cmd.validate} />
+
+{#if cmd.errors.name}
+<!-- display the error -->
+{#if}
+```
+
+---
+
+#### `.submitting`
+
+Returns a boolean indicatiing whether the form is in flight or not. Useful for setting disabled states or showing loading spinners while the data is processed.
+
+```svelte
+{#if cmd.submitting}
+	Please wait while we update your name...
+{:else}
+	<input bind:value={cmd.form.name} />
+{/if}
+<button onclick={cmd.submit} disabled={cmd.submitting}>Submit</button>
+```
+
+---
+
+#### `errors`
+
+Returns back an easily accessible object with any validation errors. See [Errors](#errors) for more information on how to render.
+
+#### `issues`
+
+Returns back the raw validation issues. See [Issues](#issues) for more information.
+
+---
 
 ## Handling file uploads
 
-SvelteKit command functions currently expect JSON-serializable payloads, so `File` objects cannot be passed directly from the client to a command. Use the provided `normalizeFiles` helper to convert browser `File` instances into serializable blobs inside the `onSubmit` hook (so the parsed data that reaches your command already contains normalized entries):
+SvelteKit command functions currently expect JSON-serializable payloads, so `File` objects cannot be passed directly from
+the client to a command.
+
+Use the provided `normalizeFiles` helper to convert browser
+`File` instances into serializable blobs inside the `onSubmit` hook (so the parsed
+data that reaches your command already contains normalized entries):
 
 ```html
 <script lang="ts">
@@ -151,10 +381,10 @@ SvelteKit command functions currently expect JSON-serializable payloads, so `Fil
 	import { zodSchema } from '$lib/schemas/upload.schema';
 	import { uploadCommand } from '$lib/server/upload.remote';
 
-	const form = new CommandForm(zodSchema, {
+	const cmd = new CommandForm(zodSchema, {
 		command: uploadCommand,
-		async onSubmit(data) {
-			data.attachments = await normalizeFiles(data.attachments);
+		async preprocess(data) {
+			cmd.form.attachments = await normalizeFiles(data.attachments);
 		}
 	});
 
@@ -179,19 +409,6 @@ type NormalizedFile = {
 ```
 
 Both the Zod and Valibot schemas above can be adapted to accept either `File[]` (for client-side validation) or this normalized structure if you prefer validating the serialized payload on the server.
-
-## Initial values and schema defaults
-
-Standard Schema v1 does **not** provide a cross-library location for default values. A Zod or Valibot schema may specify defaults internally, but those defaults are not discoverable through the shared `~standard` interface. If there is an easy way to do this feel free to submit a PR. Because of that, `CommandForm` cannot pull defaults from your schema automatically. Instead, pass defaults via `options.initial`:
-
-```ts
-const form = new CommandForm(userSchema, {
-	initial: { name: 'Ada Lovelace', age: 30, attachments: [] },
-	command: saveUser
-});
-```
-
-`initial` can also be a function if you need to recompute defaults per instantiation (`initial: () => ({ createdAt: new Date().toISOString() }))` or if you are using a `$derived()`. Any keys not provided remain `undefined` (or `null` if you explicitly set them) until the user interacts with them or you call `form.set`. If your schema rejects `undefined`/`null`, make it nullable (`z.string().nullable()`, `z.array(...).optional()`, etc.) or seed the field via `initial`.
 
 ## Error handling
 
