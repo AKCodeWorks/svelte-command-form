@@ -14,6 +14,7 @@ type CommandFormOptions<TIn, TOut> = {
   preprocess?: (data: TIn) => Promise<TIn> | TIn;
   onSubmit?: (data: TIn) => Promise<void> | void;
   onSuccess?: (result: Awaited<TOut>) => Promise<void> | void;
+  onSettled?: (result: Awaited<TOut> | null) => Promise<void> | void;
   onError?: (err: unknown) => Promise<void> | void;
 };
 

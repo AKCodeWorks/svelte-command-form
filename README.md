@@ -277,6 +277,24 @@ Runs if the form is submitted and returns sucessfully. You will have access to t
 
 ---
 
+#### `options.onSettled()`
+
+Runs after the form submission finishes, whether it succeeds or fails. Receives the returned value from `command` on success, or `null` on failure. NOTE: This runs AFTER any invalidation you may have called.
+
+```html
+<script lang="ts">
+	const cmd = new CommandForm(schema, {
+		onSettled: (result) => {
+			toast.dismiss(); // stop any loading toasts regardless of outcome
+			console.log('Finished submitting', result);
+		}
+		// ... other options
+	});
+</script>
+```
+
+---
+
 #### `options.onError()`
 
 Runs if the command fails and an error is returned.

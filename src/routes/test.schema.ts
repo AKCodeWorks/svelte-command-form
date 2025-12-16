@@ -4,6 +4,10 @@ export enum TestEnum {
 }
 const schema = z.object({
   name: z.string().min(2, "Name is required"),
+  options: z.array(z.object({
+    id: z.string(),
+    value: z.string()
+  })),
   // age: z.number().min(0, "Age must be a positive number"),
   // address: z.object({
   //   street: z.string().min(5, "Street is required"),

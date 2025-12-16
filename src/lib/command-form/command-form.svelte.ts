@@ -159,6 +159,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     } finally {
       this._submitting = false;
       if (this.options.reset === 'always') this.reset();
+      this.options.onSettled?.(this._result || null)
     }
   };
 
