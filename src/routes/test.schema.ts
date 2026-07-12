@@ -26,7 +26,17 @@ const schema = z.object({
 });
 
 const scenarioSchema = z.object({
-  value: z.string().min(2, 'Enter at least 2 characters')
+	value: z.string().min(2, 'Enter at least 2 characters')
 });
 
-export { scenarioSchema, schema };
+const primitiveSchema = z.string().trim().min(3, 'Enter at least 3 characters');
+
+const rootArraySchema = z
+	.array(z.string().trim().min(2, 'Each item must contain at least 2 characters'))
+	.min(1, 'Add at least one item');
+
+const fileSchema = z.object({
+	attachments: z.array(z.file()).min(1, 'Choose at least one file')
+});
+
+export { fileSchema, primitiveSchema, rootArraySchema, scenarioSchema, schema };

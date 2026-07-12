@@ -1,521 +1,477 @@
 # svelte-command-form
 
-Svelte-Command-Form allows you to have easy to use forms with commands instead of remote forms. Is this redundant? Maybe. However, you may not want to use an HTML form everytime. The API is greatly influenced by SvelteKit-Superforms, so if you are used to that you shouldn't have a problem here.
+`svelte-command-form` manages reactive form state around SvelteKit remote commands. It is useful when an HTML form and SvelteKit's remote `form` API are not a good fit—for example, an editor driven by buttons, a dialog, or a form assembled from several interactive components.
 
-Whenever possible you should use the SvelteKit provided `form` remote function since commands will fail in non-JS environments, but there may be cases where that is not practical or you just like the ease of interacting with an object instead of form data.
+Use SvelteKit's remote `form` API when progressive enhancement matters. Commands require JavaScript.
 
-## Features
-
-- **Schema-agnostic validation** – Works with any library that implements the [Standard Schema V1]("https://standardschema.dev/") interface. If you are unsure if your schema validation library is compatible see the list of [compatible libraries](https://standardschema.dev/#what-schema-libraries-implement-the-spec).
-- **Command-first workflow** – Wire forms directly to your remote command ([`command` from `$app/server`](https://svelte.dev/docs/kit/remote-functions#command)), and let the helper manage submission, success, and error hooks.
-- **Typed form state** – `form`, `errors`, and `issues` are all strongly typed from your schema, so your component code stays in sync with validation rules.
-- **Friendly + raw errors** – Surface user-friendly `errors` for rendering, while also exposing the untouched validator `issues` array for logging/analytics.
-- **Helpers for remote inputs** – Includes `normalizeFiles` for bundling file uploads and `standardValidate` for reusing schema validation outside the form class.
-
-  > Standard validate was yoinked straight from the `StandardSchema` GitHub
+The schema passed to `CommandForm` is the same [Standard Schema V1](https://standardschema.dev/) schema passed to SvelteKit's `command`. Zod, Valibot, ArkType, and other Standard Schema implementations are supported.
 
 ## Installation
 
 ```bash
 pnpm add @akcodeworks/svelte-command-form
-# or
+```
+
+```bash
 npm install @akcodeworks/svelte-command-form
 ```
 
-## How to Use
+## Usage
 
-```html
+Define one schema and use it for both the command and the client form.
+
+```ts
+// src/lib/user.schema.ts
+import { z } from 'zod';
+
+export const userSchema = z.object({
+	name: z.string().trim().min(2, 'Enter a name'),
+	email: z.email('Enter a valid email'),
+	roles: z.array(z.string()).min(1, 'Choose at least one role')
+});
+```
+
+```ts
+// src/lib/user.remote.ts
+import { command } from '$app/server';
+import { userSchema } from './user.schema.js';
+
+export const saveUser = command(userSchema, async (user) => {
+	// `user` is the validated output of userSchema
+	return { id: crypto.randomUUID(), user };
+});
+```
+
+```svelte
 <script lang="ts">
 	import { CommandForm } from '@akcodeworks/svelte-command-form';
-	import { schema } from '$lib/schemas/user.schema';
-	import { saveUser } from '$lib/server/save-user';
+	import { saveUser } from '$lib/user.remote.js';
+	import { userSchema } from '$lib/user.schema.js';
 
-	const form = new CommandForm(schema, {
-		initial: { name: '' },
+	const user = new CommandForm(userSchema, {
 		command: saveUser,
+		initial: {
+			name: '',
+			email: '',
+			roles: ['member']
+		},
 		reset: 'onSuccess',
-		onSuccess: (result) => console.log('Saved', result)
+		onSuccess: (result) => {
+			console.log('Saved user', result.id);
+		}
 	});
 </script>
 
-<input bind:value="{form.form.name}" placeholder="Name" />
-{#if form.errors.name}
-<p class="error">{form.errors.name.message}</p>
+<label>
+	Name
+	<input bind:value={user.form.name} aria-invalid={!!user.errors.name?.message} />
+</label>
+{#if user.errors.name?.message}
+	<p>{user.errors.name.message}</p>
 {/if}
 
-<button disabled="{form.submitting}" onclick="{form.submit}">
-	{form.submitting ? 'Saving…' : 'Save'}
+<label>
+	Email
+	<input type="email" bind:value={user.form.email} aria-invalid={!!user.errors.email?.message} />
+</label>
+{#if user.errors.email?.message}
+	<p>{user.errors.email.message}</p>
+{/if}
+
+<button onclick={() => user.submit()} disabled={user.submitting}>
+	{user.submitting ? 'Saving…' : 'Save'}
 </button>
 ```
 
-### Showing validation errors
+## Errors
 
-`CommandForm` keeps two synchronized error stores:
-
-- `errors` – per-field objects `{ message: string }` that are easy to render.
-- `issues` – the untouched Standard Schema issue array (useful for logs/analytics).
-
-To display errors in the DOM, check the keyed entry in `form.errors`:
-
-```html
-<label>
-	Name
-	<input bind:value="{form.form.name}" />
-</label>
-{#if form.errors.name}
-<p class="error">{form.errors.name.message}</p>
-{/if}
-
-<label>
-	Age
-	<input type="number" bind:value="{form.form.age}" />
-</label>
-{#if form.errors.age}
-<p class="error">{form.errors.age.message}</p>
-{/if}
-```
-
-Running `await form.validate()` triggers the same schema parsing as `submit()` without sending data, so you can eagerly show validation feedback (e.g., on blur). Whenever validation passes, both `errors` and `issues` are cleared.
-
-Array and nested errors follow the dot-path reported by your schema. If the schema declares `names: z.array(z.string())` and the user submits `[123]`, the error map becomes:
+`errors` follows the shape of the schema input. Nested objects and arrays remain nested:
 
 ```ts
-{
-  'names.0': { message: 'Expected string' }
+const schema = z.object({
+	address: z.object({
+		city: z.string().min(2)
+	}),
+	contacts: z.array(
+		z.object({
+			email: z.email()
+		})
+	)
+});
+```
+
+```svelte
+{#if form.errors.address?.city?.message}
+	<p>{form.errors.address.city.message}</p>
+{/if}
+
+{#each form.form.contacts ?? [] as contact, index}
+	<input bind:value={contact.email} />
+	{#if form.errors.contacts?.[index]?.email?.message}
+		<p>{form.errors.contacts[index]?.email?.message}</p>
+	{/if}
+{/each}
+```
+
+Each error node contains the first message in `message` and every message reported for that path in `messages`. The untouched Standard Schema issue array is available as `issues`.
+
+```ts
+form.errors.contacts?.[0]?.email?.message;
+form.errors.contacts?.[0]?.email?.messages;
+form.issues;
+```
+
+You can also look up an error by a Standard Schema path or add one locally:
+
+```ts
+form.errorAt(['contacts', 0, 'email']);
+
+form.addError({
+	path: ['contacts', 0, 'email'],
+	message: 'This address is already in use'
+});
+```
+
+`validate()` runs client-side schema validation without invoking the command. It resolves to `true` when valid and `false` when validation issues were found.
+
+```ts
+const valid = await form.validate();
+```
+
+Unexpected validator errors are not converted into validation errors; they reject normally.
+
+## Schema input and output
+
+SvelteKit commands distinguish between schema input and validated output. `CommandForm` does the same:
+
+- `form`, `initial`, `set`, and `preprocess` use `StandardSchemaV1.InferInput<Schema>`.
+- `onSubmit` receives `StandardSchemaV1.InferOutput<Schema>` after client validation.
+- `command` receives the schema input and validates it again on the server.
+
+This matters for coercing and transforming schemas:
+
+```ts
+const schema = z.object({
+	publishedAt: z.coerce.date()
+});
+
+const form = new CommandForm(schema, {
+	command: publish,
+	initial: { publishedAt: '2026-07-12' },
+	onSubmit: (data) => {
+		// data.publishedAt is a Date
+	}
+});
+```
+
+Any Standard Schema accepted by SvelteKit's `command` can be used, including primitive and root-array schemas. Non-object schemas require an initial value and use whole-value replacement:
+
+```ts
+const search = new CommandForm(z.string().min(2), {
+	command: runSearch,
+	initial: ''
+});
+
+search.set('svelte');
+search.form; // string
+```
+
+```ts
+const tags = new CommandForm(z.array(z.string().min(1)), {
+	command: saveTags,
+	initial: ['svelte']
+});
+
+tags.form.push('typescript');
+tags.set(['replacement', 'values']);
+```
+
+Object schemas may omit `initial`; their form state starts as an empty object and is filled with partial updates.
+
+## Options
+
+### `command`
+
+The SvelteKit `RemoteCommand` associated with the schema. Its input must match the schema's inferred input.
+
+### `initial`
+
+Initial form state, or a function that returns it. A function is evaluated when the form is constructed and every time `reset()` runs.
+
+```ts
+const form = new CommandForm(schema, {
+	command: updateProfile,
+	initial: () => ({
+		name: currentProfile.name
+	})
+});
+```
+
+`initial` is required for primitive and root-array schemas because a default value cannot be inferred from Standard Schema metadata.
+
+### `preprocess`
+
+Runs before client validation and receives a snapshot of the current form state. It must return the complete schema input and may be asynchronous. The live form is not changed by preprocessing.
+
+```ts
+const form = new CommandForm(schema, {
+	command: saveProfile,
+	initial: { name: '', tags: [] },
+	preprocess: async (data) => ({
+		name: data.name?.trim() ?? '',
+		tags: data.tags ?? []
+	})
+});
+```
+
+`validate()` does not run `preprocess`; it validates the current form state directly.
+
+### `onSubmit`
+
+Runs after client validation and before the remote command. It receives the schema's validated output and may be asynchronous.
+
+```ts
+onSubmit: async (data) => {
+	await auditAttempt(data);
+};
+```
+
+### `onSuccess`
+
+Runs after the remote command resolves. It receives the command result and is awaited before invalidation and automatic success reset.
+
+```ts
+onSuccess: (result) => {
+	console.log(result);
+};
+```
+
+### `onError`
+
+Runs for validation failures and unexpected submission failures. Validation failures populate `errors` and make `submit()` resolve to `null`. Unexpected failures call `onError` and then reject from `submit()`.
+
+```ts
+try {
+	await form.submit();
+} catch (error) {
+	// network errors, ordinary HTTP errors, and callback failures
 }
 ```
 
-Render that however makes sense—either surface the aggregated message near the group (`form.errors['names.0']?.message`) or group entries by prefix to display per-item errors.
+Errors thrown by `onError` also reject from `submit()`.
 
-### Standard Schema compatibility
+### `onSettled`
 
-Any schema object that exposes the `~standard` property works:
+Runs after success or failure and is awaited. It receives the command result on success and `null` when no result was produced. It runs after invalidation and automatic reset behavior.
 
 ```ts
-import { z } from 'zod'; // or create a schema with any StandardSchemaV1 compliant lib.
-
-const userSchema = z.object({
-	name: z.string().min(2),
-	email: z.string().email()
-});
-
-const form = new CommandForm(userSchema, { command: saveUser });
+onSettled: async (result) => {
+	await stopProgressIndicator(result);
+};
 ```
 
-## API
+Falsy command results such as `false`, `0`, and `''` are passed through unchanged.
 
-### `new CommandForm(schema, options)`
+### `invalidate`
 
-#### `schema`
+Runs SvelteKit invalidation after a successful command and `onSuccess` callback.
 
-The schema that the command accepts.
+```ts
+invalidate: 'user:details';
+```
 
-```typescript
-// someCommand.schema.ts
+```ts
+invalidate: ['user:details', 'user:list'];
+```
 
+```ts
+invalidate: 'all';
+```
+
+The string forms call `invalidate`; `'all'` calls `invalidateAll`.
+
+### `reset`
+
+Controls automatic reset behavior. Accepted values are `'onSuccess'`, `'onError'`, and `'always'`. By default the form is not reset automatically.
+
+## State and methods
+
+### `form`
+
+Reactive input state inferred from the schema. Object schemas expose partial object state. Primitive and root-array schemas expose the complete input value.
+
+### `errors` and `issues`
+
+Reactive validation state. `errors` is a nested tree intended for rendering; `issues` is the raw Standard Schema issue array or `null`.
+
+`getErrors()` and `getIssues()` return the same current values when method access is more convenient.
+
+### `result`
+
+The most recent successful command result, or `null` before a result is available. Falsy command results are preserved.
+
+### `submitting`
+
+`true` from the start of preprocessing until the asynchronous `onSettled` callback completes. Concurrent calls to `submit()` share the same in-flight submission, so the command is not invoked twice.
+
+### `submit()`
+
+Preprocesses, validates, runs the lifecycle callbacks, invokes the command, invalidates dependencies, and applies reset behavior. It resolves to the command result on success and `null` for recognized validation failures. Unexpected failures reject.
+
+### `set(values, clearIfExists?)`
+
+For object schemas, `set(values)` merges partial values into the current form. Passing `true` replaces the object instead.
+
+```ts
+form.set({ name: 'Ada' });
+form.set({ name: 'Grace' }, true);
+```
+
+Primitive and root-array values are always replaced:
+
+```ts
+search.set('remote functions');
+tags.set(['svelte', 'typescript']);
+```
+
+### `reset()`
+
+Replaces the current form state with `initial`. If `initial` is a function, the function is evaluated again. The reset value is returned.
+
+### `validate()`
+
+Validates current form state, updates `errors` and `issues`, and resolves to a boolean. It does not invoke `preprocess`, lifecycle callbacks, or the remote command.
+
+### `addError()` and `errorAt()`
+
+`addError()` adds a client-side error at a property or Standard Schema path. `errorAt()` returns the error at a path if one exists.
+
+## Server validation errors
+
+Business rules checked inside a command can be returned as field errors by throwing `SchemaValidationError` and exposing its issues through SvelteKit's server error handler.
+
+Add the issue shape to `App.Error`:
+
+```ts
+// src/app.d.ts
+import type { SchemaIssues } from '@akcodeworks/svelte-command-form';
+
+declare global {
+	namespace App {
+		interface Error {
+			issues?: SchemaIssues;
+		}
+	}
+}
+
+export {};
+```
+
+Return the issues from `handleError`:
+
+```ts
+// src/hooks.server.ts
+import type { HandleServerError } from '@sveltejs/kit';
+import { SchemaValidationError } from '@akcodeworks/svelte-command-form';
+
+export const handleError: HandleServerError = ({ error }) => {
+	if (error instanceof SchemaValidationError) {
+		return {
+			message: error.message,
+			issues: error.issues
+		};
+	}
+
+	return { message: 'Internal error' };
+};
+```
+
+Then throw the error in the command:
+
+```ts
+import { command } from '$app/server';
+import { SchemaValidationError } from '@akcodeworks/svelte-command-form';
+import { userSchema } from './user.schema.js';
+
+export const saveUser = command(userSchema, async (user) => {
+	if (await emailExists(user.email)) {
+		throw new SchemaValidationError([{ path: ['email'], message: 'This email is already in use' }]);
+	}
+
+	return persistUser(user);
+});
+```
+
+Only HTTP errors with a valid Standard Schema issue array are treated as validation failures. Other HTTP, network, and application errors reject from `submit()`.
+
+## File inputs
+
+SvelteKit commands accept `File` objects directly. Add files to the schema and form state without converting them first:
+
+```ts
+// upload.schema.ts
 import { z } from 'zod';
 
-const schema = z.object({
-	name: z.string().min(1, 'Must have a name')
+export const uploadSchema = z.object({
+	attachments: z.array(z.file()).min(1, 'Choose at least one file')
 });
-
-export { schema as someCommandSchema };
 ```
 
-```html
-<script lang="ts">
-	import { someCommandSchema } from '$lib/someCommand.schema.ts';
-
-	const cmd = new CommandForm(someCommandSchema, {
-		// ... other options
-	});
-</script>
-```
-
----
-
-#### `options.initial`
-
-Optional initial values. Returning a functions lets you compute defaults per form instance and/or when computed values change, like when using `$derived()`
-
-> You must set default values here if you are using them, default values are not able to be extracted from a `StandardSchemaV1`
-
-**Example:**
-
-```html
-<script lang="ts">
-	let { data } = $props();
-	let { name } = $derived(data);
-
-	const cmd = new CommandForm(schema, {
-		// if you do not use a function to get the value of name here
-		// you will never get the updated value
-		initial: () => ({
-			name
-		})
-		// ...other options
-	});
-</script>
-
-<input bind:value="{form.name}" />
-<button onclick="{cmd.form.submit}">Change Name</button>
-```
-
----
-
-#### `options.command`
-
-The command function that is being called.
-
-**Example:**
-
-```html
-<script lang="ts">
-	import someCommand from '$lib/remote/some-command.remote';
-
-	const cmd = new CommandForm(schema, {
-		command: someCommand
-		// ...other options
-	});
-</script>
-```
-
----
-
-#### `options.invalidate`
-
-Optional SvelteKit invalidation targets. Can be set to a single string, a string[] for multiple targets, or a literal of `all` to run `invalidateAll()`
-
-> This only runs on successful form submissions
-
-**Example:**
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		invalidate: 'user:details' // invalidates routes with depends("user:details") set
-		// ...other options
-	});
-</script>
-```
-
----
-
-#### `options.reset`
-
-Allows you to select if the form should be reset. By default, the form never resets. This accepts a value of `onSuccess` | `onError` or `always`
-
-**Example:**
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		reset: 'always' // the form will reset after submission no matter what
-		// ...other options
-	});
-</script>
-```
-
----
-
-#### `options.preprocess()`
-
-Allows you to preprocess any data you have set when the form is submitted. This will run prior to any parsing on the client. For example if you would need to convert an input of type 'date' to an ISO string on the client before submitting. If this is a promise, it will be awaited before continuing.
-
-> Preprocessed data creates a `$state.snapshot()` of your form data. Thus it is ephemeral, that way if the command fails, your form data is not already processed.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		preprocess: (data) => {
-			return { ...data, name: data.name.trim() };
-		}
-		// ... other options
-	});
-</script>
-
-<input type="date" bind:value="{cmd.form.someDate}" />
-```
-
----
-
-#### `options.onSuccess()`
-
-Runs when the form is submitted. \*The data available inside of this function is the result of your preprocess function if you have one. This can also be a promise.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		onSubmit: (data) => {
-			toast.loading('Submitting data...please wait!');
-		}
-		// ... other options
-	});
-</script>
-
-<input type="date" bind:value="{cmd.form.someDate}" />
-```
-
----
-
-#### `options.onSuccess()`
-
-Runs if the form is submitted and returns sucessfully. You will have access to the returned value from the `command` that is ran. This can also be a promise.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		onSuccess: (response) => {
-			toast.success(`${response.name} has been updated!`);
-		}
-		// ... other options
-	});
-</script>
-
-<input type="date" bind:value="{cmd.form.someDate}" />
-```
-
----
-
-#### `options.onSettled()`
-
-Runs after the form submission finishes, whether it succeeds or fails. Receives the returned value from `command` on success, or `null` on failure. NOTE: This runs AFTER any invalidation you may have called.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		onSettled: (result) => {
-			toast.dismiss(); // stop any loading toasts regardless of outcome
-			console.log('Finished submitting', result);
-		}
-		// ... other options
-	});
-</script>
-```
-
----
-
-#### `options.onError()`
-
-Runs if the command fails and an error is returned.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		onError: (error) => {
-			toast.error('Oops! Something went wrong!');
-			console.error(error);
-		}
-		// ... other options
-	});
-</script>
-```
-
----
-
-### Methods & Values
-
-When you create a `new CommandForm` you get access to several methods and values that will help you manage your form state, submit, reset, and/or display errors.
-
-In the following examples we will be using the following command form.
-
-```html
-<script lang="ts">
-	const cmd = new CommandForm(schema, {
-		initial: {
-			name: 'Ada Lovelace',
-			age: '30'
-		}
-	});
-</script>
-```
-
-#### `.form`
-
-Gives you access to the data within the form. Useful when binding to inputs.
-
-```svelte
-<input placeholder="What is your name?" bind:value={cmd.form.name} />
-```
-
----
-
-#### `.set(values, clear?: boolean )`
-
-Allows you to programatically merge form field values in bulk or add other values. If you set clear to true, it will replace all values instead of merging them in.
-
-```typescript
-set({ name: 'Linus Torvalds' });
-
-// cmd.form will now be {name: "Linus Torvalds", age: 30}
-
-set({ name: 'Linus Sebastian' }, true);
-
-// cmd.form will now be {name: "Linus Sebastian"}
-```
-
----
-
-#### `.reset()`
-
-Resets the form to the initial values that were passed in when it was instantiated.
-
-> Note: If you are using an accessor function inside of `options.initial` it will reset to the newest available value instead of what it was when you instantiated it.
-
----
-
-#### `.validate()`
-
-Runs the parser and populates any errors. Useful if you want to display errors in realtime as the user is filling out the form. It will also clear any errors as they are corrected each time it is run.
-
-> If you are using `options.preprocess` this is not ran during `validate()` however if you are using a schema library preprocessor such as `zod.preprocess` it should be ran within the parse.
-
-```svelte
-<input bind:value={cmd.form.name} onchange={cmd.validate} />
-
-{#if cmd.errors.name}
-<!-- display the error -->
-{#if}
-```
-
----
-
-#### `.submitting`
-
-Returns a boolean indicatiing whether the form is in flight or not. Useful for setting disabled states or showing loading spinners while the data is processed.
-
-```svelte
-{#if cmd.submitting}
-	Please wait while we update your name...
-{:else}
-	<input bind:value={cmd.form.name} />
-{/if}
-<button onclick={cmd.submit} disabled={cmd.submitting}>Submit</button>
-```
-
----
-
-#### `errors`
-
-Returns back an easily accessible object with any validation errors. See [Errors](#errors) for more information on how to render.
-
-#### `issues`
-
-Returns back the raw validation issues. See [Issues](#issues) for more information.
-
----
-
-## Handling file uploads
-
-SvelteKit command functions currently expect JSON-serializable payloads, so `File` objects cannot be passed directly from
-the client to a command.
-
-Use the provided `normalizeFiles` helper to convert browser
-`File` instances into serializable blobs inside the `onSubmit` hook (so the parsed
-data that reaches your command already contains normalized entries):
-
-```html
-<script lang="ts">
-	import { CommandForm, normalizeFiles } from '@akcodeworks/svelte-command-form';
-	import { zodSchema } from '$lib/schemas/upload.schema';
-	import { uploadCommand } from '$lib/server/upload.remote';
-
-	const cmd = new CommandForm(zodSchema, {
-		command: uploadCommand,
-		async preprocess(data) {
-			cmd.form.attachments = await normalizeFiles(data.attachments);
-		}
-	});
-
-	const handleFiles = (event: Event) => {
-		const input = event.target as HTMLInputElement;
-		form.set({ attachments: input.files ? [...input.files] : [] });
-	};
-</script>
-
-<input type="file" multiple onchange="{handleFiles}" />
-```
-
-`normalizeFiles` outputs objects like:
+The command receives `File` instances and can use the normal `File` methods:
 
 ```ts
-type NormalizedFile = {
-	name: string;
-	type: string;
-	size: number;
-	bytes: Uint8Array;
-};
-```
+// upload.remote.ts
+import { command } from '$app/server';
+import { uploadSchema } from './upload.schema.js';
 
-Both the Zod and Valibot schemas above can be adapted to accept either `File[]` (for client-side validation) or this normalized structure if you prefer validating the serialized payload on the server.
+export const upload = command(uploadSchema, async ({ attachments }) => {
+	for (const file of attachments) {
+		const bytes = await file.arrayBuffer();
+		await storeFile(file.name, bytes);
+	}
 
-## Error handling
-
-When validation fails, `CommandForm`:
-
-1. Throws/catches `SchemaValidationError` from `standardValidate`.
-2. Converts issues into `errors` (per field) via `transformIssues`.
-3. Stores the raw issue array in `issues` for programmatic access.
-
-If you need to manually set an error follow these steps.
-
-1. Setup your hooks.server.ts file and add an error handler.
-
-```typescript
-export const handleError: HandleServerError = async ({ error }) => {
-	// Note: If you don't want bad actors seeing your validation issues, you can do an auth check here before returning
-	if (error instanceof SchemaValidationError) return error as SchemaValidationError;
-};
-```
-
-2. Throw a new `SchemaValidationError` inside of the command.
-
-```typescript
-export const test = command(schema, async (data) => {
-	const user = await db.user.findFirst({ where: { email: data.email } });
-	if (!user)
-		throw new SchemaValidationError([
-			{ path: ['email'], message: 'Name is invalid server error!!' }
-		]);
+	return { uploaded: attachments.length };
 });
 ```
 
-In the above example this will populate the `form.errors.email.message` field so you can display the error to the user on the client.
-
-> If you do not add the custom error handler in step 1, you will not get any issues back. This is a SvelteKit design principle when dealing with Remote Functions!
-
-## Manual Errors
-
-You can add errors manually by using the `addErrors` method (client only) or by throwing a `new SchemaValidationError`.
-
-```typescript
-// server add error
-const someFunc = command(schema, async (data) => {
-	const user = await db.find({where: email: data.email})
-	if(!user) throw new SchemaValidationError([{ message: "User does with this email does not exist!", path: ['email'] }])
-})
-```
-
-```html
-<!-- +page.svelte -->
+```svelte
 <script lang="ts">
-	const form = new CommandForm(schema, {
-		command: someCommand
+	import { CommandForm } from '@akcodeworks/svelte-command-form';
+	import { upload } from './upload.remote.js';
+	import { uploadSchema } from './upload.schema.js';
+
+	const form = new CommandForm(uploadSchema, {
+		command: upload,
+		initial: { attachments: [] }
 	});
 
-	function addError() {
-		form.addError({ path: 'name', message: 'Test Error' });
+	function selectFiles(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		form.set({ attachments: Array.from(input.files ?? []) });
 	}
 </script>
 
-<button onclick="{addError}">Add an Error</button>
+<input type="file" multiple onchange={selectFiles} />
+<button onclick={() => form.submit()}>Upload</button>
 ```
 
-> addError() does NOT throw an error, you will have to do that once you call it. If you want to throw an error, throw a new `SchemaValidationError`
+## Exports
+
+```ts
+import {
+	CommandForm,
+	SchemaValidationError,
+	issueAt,
+	standardValidate,
+	transformIssues
+} from '@akcodeworks/svelte-command-form';
+```
+
+The package also exports `CommandFormOptions`, `CommandFormErrors`, `CommandFormErrorPath`, `CommandFormState`, `RemoteCommand`, `RemoteFunctionIssue`, and `SchemaIssues` as TypeScript types.
 
 ## Contributing
 
-Feel free to contribute by opening a PR with a detailed description of why you are wanting to change what you are changing. If it can be tested with Vitest, that is preferred.
+Open a pull request with a description of the behavior being changed. Include Vitest coverage when the behavior can be tested without a browser.
 
 ## License
 
