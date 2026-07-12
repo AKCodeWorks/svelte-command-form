@@ -25,4 +25,8 @@ const schema = z.object({
 	date: z.coerce.date()
 });
 
-export { schema };
+const scenarioSchema = z.object({
+  value: z.string().min(2, 'Enter at least 2 characters')
+});
+
+export { scenarioSchema, schema };

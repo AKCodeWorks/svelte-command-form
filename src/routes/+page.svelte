@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { CommandForm } from '$lib/command-form/command-form.svelte.js';
-	import { test } from './test.remote.js';
-	import { schema, TestEnum } from './test.schema.js';
+	import { test, testScenario } from './test.remote.js';
+	import { scenarioSchema, schema, TestEnum } from './test.schema.js';
 
 	let { data } = $props();
 	let events = $state<string[]>([]);
 	let nextOptionId = $state(2);
+	let preprocessed = $state<unknown>(null);
+	let accessorOutput = $state<unknown>(null);
+	let initialRun = $state(0);
 
 	function record(message: string) {
 		events.unshift(`${new Date().toLocaleTimeString()} — ${message}`);
@@ -15,18 +18,55 @@
 	const f = new CommandForm(schema, {
 		command: test,
 		initial: () => ({
-			name: 'Cheese',
+			name: `Cheese ${++initialRun}`,
 			age: 10,
 			address: { street: '123 Test Street', city: 'Testville' },
 			options: [{ id: 'option-1', value: 'Cheddar' }],
 			hobbies: ['Coding'],
-			status: TestEnum.ONE
+			status: TestEnum.ONE,
+			date: '2026-07-12'
 		}),
+		preprocess: async (value) => {
+			record('preprocess started');
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			const processed = {
+				name: value.name?.trim() ?? '',
+				age: value.age ?? -1,
+				address: value.address ?? { street: '', city: '' },
+				options: (value.options ?? []).map((option) => ({ ...option, value: option.value.trim() })),
+				hobbies: (value.hobbies ?? []).map((hobby) => hobby.trim()),
+				status: value.status ?? TestEnum.ONE,
+				date: value.date ?? new Date().toISOString()
+			};
+			preprocessed = processed;
+			record('preprocess completed');
+			return processed;
+		},
 		onSubmit: (value) => record(`onSubmit: ${value.name}`),
-		onSuccess: () => record('onSuccess'),
+		onSuccess: (result) => record(`onSuccess: ${result.success}`),
 		onSettled: (result) => record(`onSettled: ${result ? 'result received' : 'no result'}`),
 		onError: (error) => record(`onError: ${error instanceof Error ? error.message : 'unknown error'}`),
 		invalidate: 'invalidate:test'
+	});
+
+	const resetOnSuccess = new CommandForm(scenarioSchema, {
+		command: testScenario,
+		initial: { value: 'success initial' },
+		reset: 'onSuccess',
+		invalidate: ['invalidate:test', 'invalidate:secondary']
+	});
+
+	const resetOnError = new CommandForm(scenarioSchema, {
+		command: testScenario,
+		initial: { value: 'error initial' },
+		reset: 'onError'
+	});
+
+	const resetAlways = new CommandForm(scenarioSchema, {
+		command: testScenario,
+		initial: { value: 'always initial' },
+		reset: 'always',
+		invalidate: 'all'
 	});
 
 	function addOption() {
@@ -62,6 +102,13 @@
 				<select bind:value={f.form.status}>
 					{#each Object.values(TestEnum) as status (status)}<option value={status}>{status}</option>{/each}
 				</select>
+			</label>
+			<label>Date
+				<input
+					type="date"
+					value={typeof f.form.date === 'string' ? f.form.date : ''}
+					oninput={(event) => f.form.date = event.currentTarget.value}
+				/>
 			</label>
 		</div>
 		<div class="errors">
@@ -129,13 +176,16 @@
 	<section>
 		<div class="section-heading">
 			<div><span>05</span><h2>Remote submission lifecycle</h2></div>
-			<p>Tests validation, command execution, callbacks, result state, and invalidation.</p>
+			<p>Tests preprocess, validation, every callback, command execution, result state, and string invalidation.</p>
 		</div>
 		<div class="actions">
 			<button class="primary" disabled={f.submitting} onclick={() => f.submit()}>{f.submitting ? 'Submitting…' : 'Submit command'}</button>
+			<button onclick={() => { f.form.name = ''; void f.submit(); }}>Submit invalid data</button>
+			<button onclick={() => events = []}>Clear events</button>
 		</div>
 		<div class="status-grid">
 			<div><b>Result</b><pre>{JSON.stringify(f.result, null, 2)}</pre></div>
+			<div><b>Preprocess output</b><pre>{JSON.stringify(preprocessed, null, 2)}</pre></div>
 			<div><b>Lifecycle events</b>{#if events.length}<ol>{#each events as event, index (index)}<li>{event}</li>{/each}</ol>{:else}<p>Nothing recorded yet.</p>{/if}</div>
 			<div><b>Invalidated load data</b><p>{data.options.length} generated options</p></div>
 		</div>
@@ -143,10 +193,56 @@
 
 	<section>
 		<div class="section-heading">
-			<div><span>06</span><h2>Live state inspector</h2></div>
-			<p>Use this snapshot to confirm direct mutations and inferred data shape.</p>
+			<div><span>06</span><h2>Automatic reset and invalidation modes</h2></div>
+			<p>Separate instances cover onSuccess, onError, always, string arrays, and invalidateAll.</p>
 		</div>
-		<pre>{JSON.stringify(f.form, null, 2)}</pre>
+		<div class="scenario-grid">
+			<div class="scenario">
+				<b>reset: onSuccess · invalidate: string[]</b>
+				<input bind:value={resetOnSuccess.form.value} aria-label="On-success value" />
+				<button onclick={() => resetOnSuccess.submit()} disabled={resetOnSuccess.submitting}>Submit valid</button>
+				<code>{resetOnSuccess.form.value}</code>
+			</div>
+			<div class="scenario">
+				<b>reset: onError</b>
+				<input bind:value={resetOnError.form.value} aria-label="On-error value" />
+				<button onclick={() => { resetOnError.form.value = ''; void resetOnError.submit(); }} disabled={resetOnError.submitting}>Submit invalid</button>
+				<code>{resetOnError.form.value}</code>
+			</div>
+			<div class="scenario">
+				<b>reset: always · invalidate: all</b>
+				<input bind:value={resetAlways.form.value} aria-label="Always-reset value" />
+				<button onclick={() => resetAlways.submit()} disabled={resetAlways.submitting}>Submit valid</button>
+				<code>{resetAlways.form.value}</code>
+			</div>
+		</div>
+	</section>
+
+	<section>
+		<div class="section-heading">
+			<div><span>07</span><h2>Accessors and replacement set</h2></div>
+			<p>Exercises errorAt, getErrors, getIssues, and set with clearIfExists.</p>
+		</div>
+		<div class="actions">
+			<button onclick={() => accessorOutput = f.errorAt(['options', 0, 'value'])}>errorAt nested path</button>
+			<button onclick={() => accessorOutput = f.getErrors()}>getErrors()</button>
+			<button onclick={() => accessorOutput = f.getIssues()}>getIssues()</button>
+			<button onclick={() => accessorOutput = resetAlways.set({ value: 'replacement set' }, true)}>set(values, true)</button>
+		</div>
+		<pre>{JSON.stringify(accessorOutput, null, 2)}</pre>
+	</section>
+
+	<section>
+		<div class="section-heading">
+			<div><span>08</span><h2>Live state inspector</h2></div>
+			<p>Confirms direct mutation, factory initial values, reactive properties, errors, and raw issues.</p>
+		</div>
+		<div class="status-grid">
+			<div><b>form</b><pre>{JSON.stringify(f.form, null, 2)}</pre></div>
+			<div><b>errors</b><pre>{JSON.stringify(f.errors, null, 2)}</pre></div>
+			<div><b>issues</b><pre>{JSON.stringify(f.issues, null, 2)}</pre></div>
+			<div><b>properties</b><pre>{JSON.stringify({ submitting: f.submitting, result: f.result, initialFactoryRuns: initialRun }, null, 2)}</pre></div>
+		</div>
 	</section>
 </main>
 
@@ -178,6 +274,9 @@
 	.errors, .error { color: #a12424; font-size: .85rem; }
 	pre { overflow: auto; min-height: 3rem; padding: 1rem; background: #20221f; color: #d9f99d; font: .8rem/1.5 ui-monospace, monospace; }
 	.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+	.scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+	.scenario { display: grid; align-content: start; gap: .65rem; padding: 1rem; border: 1px solid #d9dbd4; }
+	.scenario code { overflow-wrap: anywhere; color: #5167d8; }
 	ol { padding-left: 1.25rem; font: .8rem/1.7 ui-monospace, monospace; }
 	h3 { margin-top: 2rem; }
 	@media (max-width: 650px) { .section-heading { display: block; } .section-heading p { margin-top: .75rem; } .array-row { grid-template-columns: 1fr; } .array-row small { grid-column: 1; } }
