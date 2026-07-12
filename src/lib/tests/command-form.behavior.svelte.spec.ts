@@ -25,6 +25,19 @@ describe('submission behavior', () => {
 		expect(remote).toHaveBeenCalledWith({ name: 'Ada', age: 36 });
 	});
 
+	it('allows present form properties to explicitly contain undefined', () => {
+		const form = new CommandForm(z.object({ name: z.string(), age: z.number() }), {
+			initial: { name: undefined, age: undefined },
+			command: command(({ name, age }: { name: string; age: number }) => ({ name, age })),
+			preprocess: (state) => ({
+				...state,
+				name: state.name?.trim()
+			})
+		});
+
+		expect(form.form).toEqual({ name: undefined, age: undefined });
+	});
+
 	it('reports schema errors when partial preprocessed state is incomplete', async () => {
 		const remote = vi.fn();
 		const form = new CommandForm(z.object({ name: z.string(), age: z.number() }), {

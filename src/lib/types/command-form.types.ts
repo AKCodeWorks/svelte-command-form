@@ -15,10 +15,14 @@ type CommandFormErrors<T> = Partial<RemoteFunctionIssue> &
 
 type CommandFormErrorPath = ReadonlyArray<PropertyKey | StandardSchemaV1.PathSegment>;
 
+type CommandFormObjectState<TInput extends object> = {
+	[K in keyof TInput]?: TInput[K] | undefined;
+};
+
 type CommandFormState<TInput> = TInput extends readonly unknown[]
 	? TInput
 	: TInput extends object
-		? Partial<TInput>
+		? CommandFormObjectState<TInput>
 		: TInput;
 
 type InitialOption<TInput> = TInput extends readonly unknown[]
