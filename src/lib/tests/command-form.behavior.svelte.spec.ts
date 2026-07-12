@@ -10,6 +10,34 @@ function command<Input, Output>(fn: (input: Input) => Promise<Output> | Output) 
 }
 
 describe('submission behavior', () => {
+	it('allows preprocess to return partial object state and validates it afterward', async () => {
+		const remote = vi.fn(({ name, age }: { name: string; age: number }) => ({ name, age }));
+		const onSubmit = vi.fn();
+		const form = new CommandForm(z.object({ name: z.string(), age: z.number() }), {
+			initial: { name: '  Ada  ', age: 36 },
+			command: command(remote),
+			preprocess: (state) => ({ name: state.name?.trim(), age: state.age }),
+			onSubmit
+		});
+
+		await expect(form.submit()).resolves.toEqual({ name: 'Ada', age: 36 });
+		expect(onSubmit).toHaveBeenCalledWith({ name: 'Ada', age: 36 });
+		expect(remote).toHaveBeenCalledWith({ name: 'Ada', age: 36 });
+	});
+
+	it('reports schema errors when partial preprocessed state is incomplete', async () => {
+		const remote = vi.fn();
+		const form = new CommandForm(z.object({ name: z.string(), age: z.number() }), {
+			initial: { name: 'Ada' },
+			command: command(remote),
+			preprocess: (state) => ({ name: state.name?.trim() })
+		});
+
+		await expect(form.submit()).resolves.toBeNull();
+		expect(form.errors.age?.message).toBeDefined();
+		expect(remote).not.toHaveBeenCalled();
+	});
+
 	it('calls onError and rejects unexpected errors', async () => {
 		const failure = new Error('network failed');
 		const onError = vi.fn();

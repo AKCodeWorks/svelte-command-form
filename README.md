@@ -211,15 +211,15 @@ const form = new CommandForm(schema, {
 
 ### `preprocess`
 
-Runs before client validation and receives a snapshot of the current form state. It must return the complete schema input and may be asynchronous. The live form is not changed by preprocessing.
+Runs before client validation and receives a snapshot of the current form state. It returns form state, which may still be partial for object schemas, and may be asynchronous. The schema remains responsible for determining whether the resulting state is complete and valid. The live form is not changed by preprocessing.
 
 ```ts
 const form = new CommandForm(schema, {
 	command: saveProfile,
 	initial: { name: '', tags: [] },
 	preprocess: async (data) => ({
-		name: data.name?.trim() ?? '',
-		tags: data.tags ?? []
+		...data,
+		name: data.name?.trim()
 	})
 });
 ```
