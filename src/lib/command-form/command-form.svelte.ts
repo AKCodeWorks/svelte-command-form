@@ -3,30 +3,38 @@ import { isHttpError } from '@sveltejs/kit';
 import { invalidate, invalidateAll } from '$app/navigation';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { HttpError } from '@sveltejs/kit';
-import { transformIssues } from '../helpers/transform-issues.js';
-import type { CommandFormErrors, CommandFormOptions } from '../types/command-form.types.js';
+import { issueAt, pathKeys, transformIssues } from '../helpers/transform-issues.js';
+import type { CommandFormErrorPath, CommandFormErrors, CommandFormOptions } from '../types/command-form.types.js';
 import { SchemaValidationError, standardValidate, type SchemaIssues } from '../helpers/standard-validate.js';
 
+type SchemaInput<Schema extends StandardSchemaV1> = StandardSchemaV1.InferInput<Schema>;
 type SchemaData<Schema extends StandardSchemaV1> = StandardSchemaV1.InferOutput<Schema>;
 
 export class CommandForm<Schema extends StandardSchemaV1, TOut> {
   private schema: Schema;
-  private options: CommandFormOptions<SchemaData<Schema>, TOut>;
+  private options: CommandFormOptions<SchemaInput<Schema>, SchemaData<Schema>, TOut>;
 
-  form = $state<Partial<SchemaData<Schema>>>({});
-  errors = $state<CommandFormErrors<SchemaData<Schema>>>({});
+  form = $state<Partial<SchemaInput<Schema>>>({});
+  errors = $state<CommandFormErrors<SchemaInput<Schema>>>({} as CommandFormErrors<SchemaInput<Schema>>);
   issues = $state<SchemaIssues | null>(null);
   private _submitting = $state(false);
   private _result = $state<Awaited<TOut> | null>(null);
 
-  constructor(schema: Schema, options: CommandFormOptions<SchemaData<Schema>, TOut>) {
+  constructor(
+    schema: Schema,
+    options: CommandFormOptions<
+      SchemaInput<NoInfer<Schema>>,
+      SchemaData<NoInfer<Schema>>,
+      TOut
+    >
+  ) {
     this.schema = schema;
     this.options = options;
 
     this.set(this.resolveInitial(), true);
   }
 
-  private resolveInitial(): Partial<SchemaData<Schema>> {
+  private resolveInitial(): Partial<SchemaInput<Schema>> {
     const initial = this.options.initial;
     if (typeof initial === 'function') return initial();
     return initial ?? {};
@@ -38,12 +46,10 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
   }
 
   private setErrorsFromIssues(issues: SchemaIssues) {
-    const transformed = transformIssues(issues);
+    const transformed = transformIssues<SchemaInput<Schema>>(issues);
     this.clearErrors(false);
     this.issues = issues;
-    for (const [key, val] of Object.entries(transformed)) {
-      (this.errors as any)[key] = val;
-    }
+    Object.assign(this.errors, transformed);
   }
 
   private setErrorsFromRecord(record: Record<string, { message: string }>) {
@@ -61,18 +67,23 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
     return standardValidate(this.schema, target);
   }
 
-  // set path to keyof schema or string
+  addError = (error: { path: CommandFormErrorPath | PropertyKey, message: string }) => {
+    const path = Array.isArray(error.path) ? error.path : [error.path];
+    let node = this.errors as Record<PropertyKey, any>;
+    for (const key of pathKeys(path)) node = (node[key] ??= {});
+    node.message ??= error.message;
+    node.messages = [...(node.messages ?? []), error.message];
+  };
 
-  addError = (error: { path: string, message: string }) => {
-    (this.errors as any)[error.path] = { message: error.message };
-  }
+  errorAt = (path: CommandFormErrorPath | PropertyKey) =>
+    issueAt(this.errors, Array.isArray(path) ? path : [path]);
 
   reset = () => {
     for (const key in this.form) delete (this.form as any)[key];
     Object.assign(this.form, this.resolveInitial());
   };
 
-  set = (values: Partial<SchemaData<Schema>>, clearIfExists = false) => {
+  set = (values: Partial<SchemaInput<Schema>>, clearIfExists = false) => {
     if (clearIfExists) {
       for (const key in this.form) delete (this.form as any)[key];
     }
@@ -83,7 +94,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
   validate = async () => {
     try {
       await this.parseForm();
-      this.errors = {};
+      this.errors = {} as CommandFormErrors<SchemaInput<Schema>>;
       this.issues = null;
     } catch (err: unknown) {
       if (err instanceof SchemaValidationError) {
@@ -106,11 +117,12 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
       const preprocessed =
         (await this.options.preprocess?.(workingCopy)) ?? workingCopy;
 
-      const parsed = await this.parseForm(preprocessed);
+      const input = preprocessed as SchemaInput<Schema>;
+      const parsed = await this.parseForm(input);
 
       await this.options.onSubmit?.(parsed);
 
-      const res = await this.options.command(parsed);
+      const res = await this.options.command(input);
 
       this._result = res;
 

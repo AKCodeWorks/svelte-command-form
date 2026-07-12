@@ -35,7 +35,7 @@ describe('initial values', async () => {
 
 		f.addError({ path: 'name', message: "Test Error" })
 
-		expect(f.errors).toStrictEqual({ name: { message: "Test Error" } })
+		expect(f.errors).toStrictEqual({ name: { message: "Test Error", messages: ["Test Error"] } })
 
 		// test initial values without a getter func so reset should go back to inital value not the derived updated value
 		const ff = new CommandForm(testSchema, {
