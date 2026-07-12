@@ -48,12 +48,6 @@
 <svelte:head><title>CommandForm test harness</title></svelte:head>
 
 <main>
-	<header class="hero">
-		<p class="eyebrow">Development route</p>
-		<h1>CommandForm test harness</h1>
-		<p>Exercise each public behavior independently and inspect its reactive state.</p>
-	</header>
-
 	<section>
 		<div class="section-heading">
 			<div><span>01</span><h2>Scalar and nested fields</h2></div>
@@ -128,7 +122,7 @@
 		</div>
 		<div class="actions">
 			<button onclick={() => f.set({ name: 'Set by API' })}>Partial set</button>
-			<button onclick={() => f.reset()}>Reset to initial</button>
+			<button onclick={() => f.reset()}>Reset form</button>
 		</div>
 	</section>
 
@@ -160,9 +154,7 @@
 	:global(*) { box-sizing: border-box; }
 	:global(body) { margin: 0; background: #f5f5f2; color: #20221f; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 	main { width: min(1080px, calc(100% - 2rem)); margin: 0 auto; padding: 4rem 0 8rem; }
-	.hero { border-bottom: 3px solid #20221f; padding-bottom: 2rem; margin-bottom: 1.25rem; }
-	.eyebrow, .section-heading span { color: #6a6f65; font: 700 .75rem/1 monospace; letter-spacing: .12em; text-transform: uppercase; }
-	h1 { font-size: clamp(2.5rem, 7vw, 5.5rem); letter-spacing: -.06em; line-height: .95; margin: .5rem 0 1rem; }
+	.section-heading span { color: #6a6f65; font: 700 .75rem/1 monospace; letter-spacing: .12em; text-transform: uppercase; }
 	section { background: white; border: 1px solid #d9dbd4; margin-top: 1rem; padding: clamp(1rem, 3vw, 2rem); }
 	.section-heading { display: flex; justify-content: space-between; gap: 2rem; border-bottom: 1px solid #d9dbd4; padding-bottom: 1rem; margin-bottom: 1.5rem; }
 	.section-heading div { display: flex; align-items: baseline; gap: .75rem; }
