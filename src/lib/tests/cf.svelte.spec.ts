@@ -1,4 +1,4 @@
-import { CommandForm, SchemaValidationError } from '$lib/index.ts';
+import { CommandForm, SchemaValidationError } from '#lib/index.ts';
 import { describe, it, expect } from 'vitest';
 import { testRemoteCommand } from './test.remote.ts';
 import { testSchema } from './test.schema.ts';
@@ -7,70 +7,69 @@ import { testSchema } from './test.schema.ts';
 
 describe('initial values', async () => {
 	it('test client side transforms', async () => {
-		let someNum = $state(1)
+		let someNum = $state(1);
 		const f = new CommandForm(testSchema, {
 			command: testRemoteCommand,
 			onSubmit: async () => {
-				throw new SchemaValidationError([{ message: "Test Error", path: ['name'] }])
+				throw new SchemaValidationError([{ message: 'Test Error', path: ['name'] }]);
 			}
-		})
+		});
 
-		expect(f.errors).toStrictEqual({})
+		expect(f.errors).toStrictEqual({});
 
-		f.set({ name: "Vitest" })
+		f.set({ name: 'Vitest' });
 
-		expect(f.form.name).toBe("Vitest")
+		expect(f.form.name).toBe('Vitest');
 
-		f.set({ name: "TestVitest", age: 5 })
+		f.set({ name: 'TestVitest', age: 5 });
 
-		expect(f.form).toStrictEqual({ name: "TestVitest", age: 5 })
+		expect(f.form).toStrictEqual({ name: 'TestVitest', age: 5 });
 
-		f.set({ age: 10 }, true)
+		f.set({ age: 10 }, true);
 
-		expect(f.form).toStrictEqual({ age: 10 })
+		expect(f.form).toStrictEqual({ age: 10 });
 
-		f.form.name = "DirectSet"
+		f.form.name = 'DirectSet';
 
-		expect(f.form).toStrictEqual({ name: "DirectSet", age: 10 })
+		expect(f.form).toStrictEqual({ name: 'DirectSet', age: 10 });
 
-		f.addError({ path: 'name', message: "Test Error" })
+		f.addError({ path: 'name', message: 'Test Error' });
 
-		expect(f.errors).toStrictEqual({ name: { message: "Test Error", messages: ["Test Error"] } })
+		expect(f.errors).toStrictEqual({ name: { message: 'Test Error', messages: ['Test Error'] } });
 
 		// test initial values without a getter func so reset should go back to inital value not the derived updated value
 		const ff = new CommandForm(testSchema, {
 			command: testRemoteCommand,
-			initial: { name: "Initial Name", age: someNum + 1 }
-		})
+			initial: { name: 'Initial Name', age: someNum + 1 }
+		});
 
-		expect(ff.form).toStrictEqual({ name: "Initial Name", age: 2 })
+		expect(ff.form).toStrictEqual({ name: 'Initial Name', age: 2 });
 
-		someNum = 2
+		someNum = 2;
 
+		expect(ff.form).toStrictEqual({ name: 'Initial Name', age: 2 });
 
-		expect(ff.form).toStrictEqual({ name: "Initial Name", age: 2 })
+		ff.reset();
 
-		ff.reset()
+		expect(ff.form).toStrictEqual({ name: 'Initial Name', age: 2 });
 
-		expect(ff.form).toStrictEqual({ name: "Initial Name", age: 2 })
-
-		someNum = 1
+		someNum = 1;
 
 		// do same test but with a getter function to see if it reacts
 
 		const fff = new CommandForm(testSchema, {
 			command: testRemoteCommand,
-			initial: () => ({ name: "Initial Name", age: someNum + 1 })
-		})
+			initial: () => ({ name: 'Initial Name', age: someNum + 1 })
+		});
 
-		expect(fff.form).toStrictEqual({ name: "Initial Name", age: 2 })
+		expect(fff.form).toStrictEqual({ name: 'Initial Name', age: 2 });
 
-		someNum++
+		someNum++;
 
-		expect(fff.form).toStrictEqual({ name: "Initial Name", age: 2 })
+		expect(fff.form).toStrictEqual({ name: 'Initial Name', age: 2 });
 
-		fff.reset()
+		fff.reset();
 
-		expect(fff.form).toStrictEqual({ name: "Initial Name", age: 3 })
+		expect(fff.form).toStrictEqual({ name: 'Initial Name', age: 3 });
 	});
 });

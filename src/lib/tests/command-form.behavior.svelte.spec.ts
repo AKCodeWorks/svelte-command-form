@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import type { RemoteCommand } from '@sveltejs/kit';
+import type { RemoteCommand } from '$app/server';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { CommandForm } from '../command-form/command-form.svelte.js';
@@ -104,10 +104,9 @@ describe('submission behavior', () => {
 		const form = new CommandForm(z.object({ value: z.string() }), {
 			initial: { value: 'valid' },
 			command: command(() => {
-				error(422, {
-					message: 'Invalid input',
+				error(422, 'Invalid input', {
 					issues: [{ message: 'Rejected by server', path: ['value'] }]
-				} as Error & { issues: Array<{ message: string; path: PropertyKey[] }> });
+				});
 			})
 		});
 
@@ -157,13 +156,13 @@ describe('file inputs', () => {
 			name: attachments[0].name,
 			bytes: (await attachments[0].arrayBuffer()).byteLength
 		}));
+
 		const form = new CommandForm(z.object({ attachments: z.array(z.file()) }), {
 			initial: { attachments: [] },
 			command: command(remote)
 		});
 
 		form.set({ attachments: [file] });
-
 		await expect(form.submit()).resolves.toEqual({ name: 'test.txt', bytes: 13 });
 		expect(remote.mock.calls[0][0].attachments[0]).toBeInstanceOf(File);
 	});
