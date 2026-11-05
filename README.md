@@ -45,8 +45,8 @@ export const saveUser = command(userSchema, async (user) => {
 ```svelte
 <script lang="ts">
 	import { CommandForm } from '@akcodeworks/svelte-command-form';
-	import { saveUser } from '$lib/user.remote.js';
-	import { userSchema } from '$lib/user.schema.js';
+	import { saveUser } from '#lib/user.remote.js';
+	import { userSchema } from '#lib/user.schema.js';
 
 	const user = new CommandForm(userSchema, {
 		command: saveUser,

@@ -1,4 +1,4 @@
-import type { RemoteCommand } from '@sveltejs/kit';
+import type { RemoteCommand } from '$app/server';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 interface RemoteFunctionIssue {
@@ -18,18 +18,22 @@ type CommandFormErrorPath = ReadonlyArray<PropertyKey | StandardSchemaV1.PathSeg
 type CommandFormObjectState<TInput extends object> = {
 	[K in keyof TInput]?: TInput[K] | undefined;
 };
-
 type CommandFormState<TInput> = TInput extends readonly unknown[]
 	? TInput
 	: TInput extends object
 		? CommandFormObjectState<TInput>
 		: TInput;
-
 type InitialOption<TInput> = TInput extends readonly unknown[]
-	? { initial: CommandFormState<TInput> | (() => CommandFormState<TInput>) }
+	? {
+			initial: CommandFormState<TInput> | (() => CommandFormState<TInput>);
+		}
 	: TInput extends object
-		? { initial?: CommandFormState<TInput> | (() => CommandFormState<TInput>) }
-		: { initial: CommandFormState<TInput> | (() => CommandFormState<TInput>) };
+		? {
+				initial?: CommandFormState<TInput> | (() => CommandFormState<TInput>);
+			}
+		: {
+				initial: CommandFormState<TInput> | (() => CommandFormState<TInput>);
+			};
 
 type CommandFormOptions<TInput, TValidated, TOut> = InitialOption<TInput> & {
 	invalidate?: string | string[] | 'all';

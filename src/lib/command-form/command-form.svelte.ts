@@ -1,5 +1,5 @@
 import { isHttpError } from '@sveltejs/kit';
-import { invalidate, invalidateAll } from '$app/navigation';
+import { invalidate, refreshAll } from '$app/navigation';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { issueAt, pathKeys, transformIssues } from '../helpers/transform-issues.js';
 import type {
@@ -133,7 +133,7 @@ export class CommandForm<Schema extends StandardSchemaV1, TOut> {
 				if (Array.isArray(this.options.invalidate)) {
 					for (const dependency of this.options.invalidate) await invalidate(dependency);
 				} else if (this.options.invalidate === 'all') {
-					await invalidateAll();
+					await refreshAll();
 				} else {
 					await invalidate(this.options.invalidate);
 				}
